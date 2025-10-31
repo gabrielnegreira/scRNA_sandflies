@@ -1,0 +1,14 @@
+inputs/
+outputs/
+*.bam
+*.fasta
+*.h5
+*.csv
+logs/
+tmp/
+.slurm*
+*.out
+*.err
+.env
+.venv/
+.envrc
