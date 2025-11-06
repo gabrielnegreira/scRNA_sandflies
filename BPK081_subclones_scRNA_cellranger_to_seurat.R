@@ -1,30 +1,25 @@
 #this script is used to create the seurat Objects from the output files of cellranger-rna
 
 #prepare the environment####
-source("clean_environment.R")
+source("../bioinfo_tools/general_tools/clean_R_environment.R")
 
 ##load libraries####
 library(Seurat)
 library(rtracklayer)
 library(tidyverse)
-source("custom_functions.R")
-
+source("../bioinfo_tools/scRNA/scRNA_functions.R")
 
 ##set parameters####
 project <- "BPK081_subclones"
-cellranger_outputs <- "project_specific/BPK081_subclones/inputs/cellranger outputs/"
+cellranger_outputs <- "inputs/scRNA/cellranger_outputs/"
 libraries <- c(`105118-001-001` = "B12", `105118-001-002` = "E4", `105118-001-003` = "G3", `105118-001-004` = "G6")
+output_file <- "outputs/scRNA/BPK081_subclones_unprocessed.rds"
 
 ##fix issues with memory limit####
 library(future)
 options(future.globals.maxSize = (32*(1024^3)))
 
 #code####
-
-##create output_directories####
-out_dir <- paste0("project_specific/", project,"/outputs/")
-suppressWarnings(dir.create(out_dir, recursive = TRUE))
-
 #create Seurat object####
 ##get the directory where data is
 dirs <- list.dirs(cellranger_outputs, recursive = FALSE)
@@ -46,16 +41,16 @@ seuratObj@meta.data$subclone <- libraries[seuratObj@meta.data$orig.ident]
 
 ##create features metadata####
 ##get genome anotation
-genome_annotation <- rtracklayer::readGFFAsGRanges("common_inputs/LdCL_ref/LdCL_annotation_for_cellranger.gtf") %>%
+genome_annotation <- rtracklayer::readGFFAsGRanges("inputs/external_data/LdCL_ref/LdCL_annotation_for_cellranger.gtf") %>%
   as.data.frame() %>%
   dplyr::rename(annotated_name = gene_name) %>%
   mutate(chromosome = as.numeric(factor(seqnames)))
 
 #get TrypTag localizations
-TrypTag_localizations <- read_delim("common_inputs/T_brucei_data/TrypTag_localizations.tsv") %>%
+TrypTag_localizations <- read_delim("inputs/external_data/T_brucei_data/TrypTag_localizations.tsv") %>%
 column_to_rownames("Gene ID")
-multicopy_genes <- readxl::read_excel("common_inputs/LdCL_ref/LdCL_multicopy_genes.xlsx")
-TrypTag_localizations <- read_delim("common_inputs/T_brucei_data/Tb_to_LdCL.tsv") %>%
+multicopy_genes <- readxl::read_excel("inputs/external_data/LdCL_ref/LdCL_multicopy_genes.xlsx")
+TrypTag_localizations <- read_delim("inputs/external_data/T_brucei_data/Tb_to_LdCL.tsv") %>%
   dplyr::rename(LdCL = source_id, Tb = `Input Ortholog(s)`) %>%
   select(LdCL, Tb) %>%
   separate_rows(Tb, sep = ",") %>%
@@ -93,14 +88,14 @@ seuratObj[["RNA"]]@meta.data <- data.frame(cellranger_id = Read10X(paste0(cellra
 rm(list = c("dirs", "dir", "library", "libraries", "sample_name", "genome_annotation"))
 
 #tag aneuploid cells####
-source("project_specific/BPK081_subclones/tag_aneuploid_cells.R")
+source("BPK081_subclones_scRNA_flag_aneuploid_cells.R")
 
 #Map to Lmj atlas####
-Ld_to_Lmj <- xlsx::read.xlsx("common_inputs/LdCL_ref/Lmj_to_LdCL_one_to_one.xlsx", sheetIndex = 1) %>%
+Ld_to_Lmj <- xlsx::read.xlsx("inputs/external_data/LdCL_ref/Lmj_to_LdCL_one_to_one.xlsx", sheetIndex = 1) %>%
   select(seurat_id, Lm) %>%
   deframe()
 seuratObj <- meta_from_ref(query_obj = seuratObj, 
-                           ref_obj = readRDS("common_inputs/LdCL_ref/Lmj_Atlas.rds"),
+                           ref_obj = readRDS("inputs/external_data/reference_seurat_objects/Lmj_Atlas.rds"),
                            dims = 1:30,
                            subsample_ref = 5000,
                            metadata_to_extract = "stages.ident",
@@ -113,6 +108,6 @@ seuratObj <- meta_from_ref(query_obj = seuratObj,
 seuratObj@misc$colors$atlas.stages.ident <- create_colors(seuratObj$atlas.stages.ident)
 
 #store the seurat object to disk
-saveRDS(seuratObj, file = paste0(out_dir, "/", project, "_unprocessed.rds"))
+saveRDS(seuratObj, file = output_file)
 rm(seuratObj)
 
