@@ -54,8 +54,7 @@ done
 echo "Cleaning reads with fastp"
 cd $WORKING_DIR/
 
-#first we create a tsv file specifying the sample name, read1 and read2 paths
-"$BIOINFOTOOLS_DIR/short_read_seq/write_file_list.sh" -i inputs/WGS/OX_lines/raw_fastq_files/ -o temp.tsv
+ 
 
 #now we use the tsv file to send fastp as a slurm array
 nfiles=$( cat temp.tsv | wc -l )
