@@ -3,6 +3,9 @@
 #This is a small script to copy the input fastq files as well as the reference genome to the scracth folder of the VSC HPC.
 #Meant for reproducibility
 
+set -euo pipefail
+IFS=$'\n\t'
+
 #variables
 WORKING_DIR="$VSC_SCRATCH/projects/BPK081_subclones"
 INPUT_FASTQ="/data/antwerpen/grp/aitg/jcdujardin/LeishMAP_Gabriel_WGS_Ldonovani_20251029/X204SC25056965-Z01-F001.tar"
@@ -12,16 +15,17 @@ BIOINFOTOOLS_DIR="$VSC_SCRATCH/projects/bioinfo_tools/"
 #copy fastq files
 ##go to the project directory
 cd "$WORKING_DIR"
-#create folder to store raw fastq files
-mkdir -p "inputs/WGS/OX_lines"
-cd "inputs/WGS/OX_lines"
 
-#copy the data
+#copy the reference genome
 echo "Coping reference genome..."
 mkdir -p inputs/reference_genome
 cp -r "$REFERENCE_GENOME" "inputs/reference_genome/"
 
+#copy the fastq files
 echo "Coping fastq zipped directory..."
+#create folder to store raw fastq files
+mkdir -p "inputs/WGS/OX_lines"
+cd "inputs/WGS/OX_lines"
 pv "$INPUT_FASTQ" > raw_fastq_files.tar #with `pv` we get a nice progress bar :)
 
 echo "Uncompressing it..."
@@ -54,7 +58,8 @@ done
 echo "Cleaning reads with fastp"
 cd $WORKING_DIR/
 
- 
+ #first we create a tsv file specifying the sample name, read1 and read2 paths for the raw reads
+"$BIOINFOTOOLS_DIR/short_read_seq/"write_file_list.sh -i inputs/WGS/OX_lines/raw_fastq_files/ -o temp.tsv
 
 #now we use the tsv file to send fastp as a slurm array
 nfiles=$( cat temp.tsv | wc -l )
@@ -62,7 +67,13 @@ sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh
     -l "temp.tsv" \
     -o "inputs/WGS/OX_lines/cleaned_fastq_files/"
 
-echo Done!
-
 #now create another tsv file specifying the sample name, read1 and read2 paths for the cleaned reads
 "$BIOINFOTOOLS_DIR/short_read_seq/"write_file_list.sh -i inputs/WGS/OX_lines/cleaned_fastq_files/ -o temp.tsv
+
+
+#use it to run BWA-MEM 
+nfiles=$( cat temp.tsv | wc -l )
+sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_BWA-MEM.sh" \
+    -l temp.tsv \
+    -r "inputs/reference_genome/LdCL_original.fasta" \
+    -o "inputs/WGS/OX_lines/bam_files/"
