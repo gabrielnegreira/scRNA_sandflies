@@ -63,7 +63,7 @@ cd "$WORKING_DIR"
 #now we use the tsv file to send fastp as a slurm array
 nfiles=$( cat temp.tsv | wc -l )
 echo "running fastp on a total of $nfiles files."
-sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh" \
+sbatch --array=1-${nfiles}%16 --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh" \
     -l "temp.tsv" \
     -o "inputs/WGS/subclones/cleaned_fastq_files/"
 
@@ -72,9 +72,18 @@ sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh
 
 #use it to run BWA-MEM 
 nfiles=$( cat temp.tsv | wc -l )
-echo "running bwa mem on a total of $nfiles files."
-sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_BWA-MEM.sh" \
+echo "running bwa mem on a total of $nfiles files..."
+sbatch --array=1-${nfiles}%14 --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_BWA-MEM.sh" \
     -l temp.tsv \
     -r "inputs/reference_genome/LdCL_original.fasta" \
     -o "inputs/WGS/subclones/bam_files/"
 
+#now use the generated bam files to count binned reads
+find "inputs/WGS/subclones/bam_files/"*.bam > temp.tsv 
+nfiles=$( cat temp.tsv | wc -l )
+echo "counting binned reads for a total of $nfiles files..."
+sbatch --array=1-${nfiles}%14 --wait "$BIOINFOTOOLS_DIR/short_read_seq/calc_read_count.sh" \
+    -l temp.tsv \
+    -r "inputs/reference_genome/LdCL_original.fasta" \
+    -o "inputs/WGS/subclones/count_files/" \
+    -s 1000
