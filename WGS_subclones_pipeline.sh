@@ -1,13 +1,14 @@
 #!/bin/bash
 
-set -euo pipefail
-IFS=$'\n\t' #this sets shell split strings to only tabs and newlines. 
+set -euo pipefail #stops the script if an error occurr
+IFS=$'\n\t' #this sets shell split strings to only tabs and newlines, excluding thus spaces. 
 
 #variables
 WORKING_DIR="$VSC_SCRATCH/projects/BPK081_subclones"
 INPUT_FASTQ="/data/antwerpen/grp/aitg/jcdujardin/MADLEI_wgs_20210610/"
 REFERENCE_GENOME="/scratch/antwerpen/grp/aitg/jcdujardin/reference_genomes/L_donovani/LdCL/"
 BIOINFOTOOLS_DIR="$VSC_SCRATCH/projects/bioinfo_tools/"
+BIN_SIZE=1000
 
 #copy fastq files
 ##go to the project directory
@@ -60,7 +61,7 @@ cd "$WORKING_DIR"
 "$BIOINFOTOOLS_DIR/short_read_seq/write_file_list.sh" -i inputs/WGS/subclones/raw_fastq_files/ -o temp.tsv
 
 #use it to run fastp as a slurm array
-#now we use the tsv file to send fastp as a slurm array
+#now we use the tsv file to run fastp in each fastq file pair as a slurm array
 nfiles=$( cat temp.tsv | wc -l )
 echo "running fastp on a total of $nfiles files."
 sbatch --array=1-${nfiles}%16 --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh" \
@@ -86,4 +87,6 @@ sbatch --array=1-${nfiles}%14 --wait "$BIOINFOTOOLS_DIR/short_read_seq/calc_read
     -l temp.tsv \
     -r "inputs/reference_genome/LdCL_original.fasta" \
     -o "inputs/WGS/subclones/count_files/" \
-    -s 1000
+    -s $BIN_SIZE
+
+#lastly we estimate gc content and mappability for the reference genome. 
