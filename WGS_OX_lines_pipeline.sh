@@ -1,7 +1,6 @@
 #!/bin/bash
 
-#This is a small script to copy the input fastq files as well as the reference genome to the scracth folder of the VSC HPC.
-#Meant for reproducibility
+#This script contains the workflow I followed to compute binned counts from fastq files regarding the BPK081 G3 OX lines experiment.
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -63,7 +62,7 @@ cd $WORKING_DIR/
 
 #now we use the tsv file to send fastp as a slurm array
 nfiles=$( cat temp.tsv | wc -l )
-sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh" \
+sbatch --array=1-${nfiles}%14 --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh" \
     -l "temp.tsv" \
     -o "inputs/WGS/OX_lines/cleaned_fastq_files/"
 
@@ -73,7 +72,17 @@ sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_fastp.sh
 
 #use it to run BWA-MEM 
 nfiles=$( cat temp.tsv | wc -l )
-sbatch --array=1-${nfiles} --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_BWA-MEM.sh" \
+sbatch --array=1-${nfiles}%14 --wait "$BIOINFOTOOLS_DIR/short_read_seq/run_BWA-MEM.sh" \
     -l temp.tsv \
     -r "inputs/reference_genome/LdCL_original.fasta" \
     -o "inputs/WGS/OX_lines/bam_files/"
+
+#now use the generated bam files to count binned reads
+find "inputs/WGS/OX_lines/bam_files/"*.bam > temp.tsv 
+nfiles=$( cat temp.tsv | wc -l )
+echo "counting binned reads for a total of $nfiles files..."
+sbatch --array=1-${nfiles}%14 --wait "$BIOINFOTOOLS_DIR/short_read_seq/calc_read_count.sh" \
+    -l temp.tsv \
+    -r "inputs/reference_genome/LdCL_original.fasta" \
+    -o "inputs/WGS/OX_lines/count_files/" \
+    -s 1000
