@@ -26,7 +26,7 @@ find "$INPUT_FASTQ" \
   -type f \
   -regextype posix-extended \
   -regex '.*104487-001-(04[1-9]|0[5-9][0-9]|10[0-3]).*' \
-  -exec cp {} "inputs/WGS/subclones/raw_fastq_files/" \;
+  -exec cp -u {} "inputs/WGS/subclones/raw_fastq_files/" \;
 
 #in this specific dataset, read2 is actually named as `R3`, as R2 is for indexes. So we remove R2 files and rename R3 into R2.
 echo deleting index files...
