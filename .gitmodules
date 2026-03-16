@@ -1,0 +1,6 @@
+[submodule "git_modules/WGS_tools"]
+	path = git_modules/WGS_tools
+	url = git@github.com:gabrielnegreira/WGS_tools.git
+[submodule "git_modules/Illumina_tools"]
+	path = git_modules/Illumina_tools
+	url = git@github.com:gabrielnegreira/Illumina_tools.git
