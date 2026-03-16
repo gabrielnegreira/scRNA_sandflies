@@ -8,14 +8,14 @@ library(ggalign)
 out_dir <- "outputs/WGS/"
 
 #inport bed files
-file_names <- list.files("inputs/bulk_WGS/", pattern = "*counts.bed")
-files <- paste0("inputs/bulk_WGS/", file_names)
+file_names <- list.files("inputs/WGS/", pattern = "*counts.bed", recursive = TRUE)
+files <- paste0("inputs/WGS/", file_names)
 files <- lapply(files, read_delim)
 sample_names <- gsub(".counts|.bed", "", file_names)
 names(files) <- sample_names
 
 #now we append the gc_content and compensated it
-bin_meta <- read_delim("inputs/bulk_WGS/bin_gc_and_mappability_1000.bed")
+bin_meta <- read_delim("inputs/WGS/E4_G3_pTB007/count_files/bin_gc_and_mappability_1000.tsv")
 files <- lapply(files, function(x){
   colnames(x) <- c("chrom", "start", "end", "read_count")
   x <- x %>%
