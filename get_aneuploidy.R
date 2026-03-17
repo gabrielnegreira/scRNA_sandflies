@@ -119,9 +119,9 @@ correct_gc_bias <- function(x){
 }
 
 #get arguments####
-args <- c("--inputs_dir=inputs/WGS/E4_G3_pTB007/count_files/", "--outputs_dir=outputs/WGS/E4_G3_pTB007") #meant for testing
+#args <- c("--inputs_dir=inputs/WGS/E4_G3_pTB007/count_files/", "--outputs_dir=outputs/WGS/E4_G3_pTB007") #meant for testing
+args <- commandArgs(trailingOnly = TRUE)
 validate_args(args)
-#args <- commandArgs(trailingOnly = TRUE)
 
 #load input files#####
 file_names <- list.files(inputs_dir, pattern = "*.bed")
