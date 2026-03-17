@@ -159,8 +159,7 @@ write_rds(files, paste0(outputs_dir, "/bedfile_list.rds"))
 somies %>%
   pivot_wider(names_from = chromosome, values_from = somy) %>%
   column_to_rownames("sample") %>%
-  as.matrix() %>%
-  write_delim(file = paste0(outputs_dir, "/somy_matrix.tsv"))
+  write.table(paste0(outputs_dir, "/somy_matrix.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
 
 #plot individual plots####
 for(sample in names(files)){
@@ -300,4 +299,9 @@ plot_list[["coverage"]] <- combined_data %>%
   )
 
 final_plot <- ggalign::align_plots(!!!plot_list, ncol = 1, heights = c(0.3, 0.7))
-ggsave(paste0(outputs_dir, "/", "all_samples_coverage_and_somy.png"), final_plot, height = 11.6*plot_scale, width = 8.27*plot_scale, dpi = 600)
+ggsave(paste0(outputs_dir, "/", "all_samples_coverage_and_somy.png"), 
+       final_plot, 
+       height = 11.6*plot_scale, 
+       width = 8.27*plot_scale, 
+       dpi = 600)
+
