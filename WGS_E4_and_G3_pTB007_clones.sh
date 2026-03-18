@@ -43,6 +43,10 @@ ref_mappability(){
 
 #create a function to run the aneuploidy analysis
 get_aneuploidy(){
+    module --force purge
+    module load calcua/all calcua/2025a
+    module load R/4.5.1-gfbf-2025a
+    module load R-bundle-CRAN/2025.10-foss-2025a
     echo "[INFO] determining aneuploidies..."
     Rscript "${WORKING_DIR}/git_modules/WGS_tools/get_aneuploidy.R" "$@"
 }
@@ -129,5 +133,5 @@ echo "[DONE] Files stored in inputs/WGS/E4_G3_pTB007/"
 #now perform aneuploidy analysis
 get_aneuploidy \
     --inputs_dir="inputs/WGS/E4_G3_pTB007/count_files/" \
-    --outputs_dir="inputs/WGS/E4_G3_pTB007/aneuploidy_analysis/"
+    --outputs_dir="inputs/WGS/E4_G3_pTB007/aneuploidy_analysis/" \
     --ploidy=2
