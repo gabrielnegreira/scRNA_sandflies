@@ -14,31 +14,31 @@ BIN_SIZE=1000
 #functions
 #create a function to run fastp
 run_fastp(){
-    echo Running fastp on a total of $nfiles files...
-    sbatch --array=1-${nfiles}%14 --wait "${WORKING_DIR}/git_modules/Illumina_tools/run_fastp.sh" "$@"
+    echo "[INFO] Running fastp on a total of $nfiles files..."
+    sbatch --array=1-${nfiles}%20 --wait "${WORKING_DIR}/git_modules/Illumina_tools/run_fastp.sh" "$@"
 }
 
 #create a function to run BWA-MEM
 run_bwa(){
-    echo Running BWA-mem to map reads from $nfiles files to the reference genome.
-    sbatch --array=1-${nfiles}%14 --wait "${WORKING_DIR}/git_modules/Illumina_tools/run_BWA-MEM.sh" "$@"
+    echo "[INFO] Running BWA-mem to map reads from $nfiles files to the reference genome."
+    sbatch --array=1-${nfiles}%20 --wait "${WORKING_DIR}/git_modules/Illumina_tools/run_BWA-MEM.sh" "$@"
 }
 
 #create a function to calculate binned counts from bam files
 binned_counts(){
-    echo counting reads for a total of $nfiles bam files.
-    sbatch --array=1-${nfiles}%14 --wait "${WORKING_DIR}/git_modules/WGS_tools/calc_read_count.sh" "$@"
+    echo "[INFO] counting reads for a total of $nfiles bam files."
+    sbatch --array=1-${nfiles}%20 --wait "${WORKING_DIR}/git_modules/WGS_tools/calc_read_count.sh" "$@"
 }
 
 #create a function to calculate the mappability of the reference genome
 ref_mappability(){
-    echo estimating mappability for ${BIN_SIZE}bp bins in the $( basename $REF_GENOME ) reference genome
-    "${WORKING_DIR}/git_modules/WGS_tools/compute_gc_and_mappability.sh" "$@"
+    echo "[INFO] estimating mappability for ${BIN_SIZE}bp bins in the $( basename $REF_GENOME ) reference genome"
+    sbatch --wait "${WORKING_DIR}/git_modules/WGS_tools/compute_gc_and_mappability.sh" "$@"
 }
 
 #create a function to call the `create_file_list.sh` script
 file_list(){
-    echo listing fastq files...
+    echo "[INFO] listing fastq files..."
     "${WORKING_DIR}/git_modules/Illumina_tools/write_file_list.sh" "$@"
 }
 
@@ -47,7 +47,7 @@ file_list(){
 cd "$WORKING_DIR"
 
 #copy the fastq files
-echo "Coping fastq files"
+echo "[INFO] Coping fastq files"
 #create folder to store raw fastq files
 mkdir -p "inputs/WGS/E4_G3_pTB007"
 cd "inputs/WGS/E4_G3_pTB007"
@@ -56,7 +56,7 @@ find "$INPUT_FASTQ" -name *.fq.gz -print0 -exec cp -u {} . \;
 #change permissions
 chmod -R 700 .
 #rename the files to simpler names
-echo "simplifying file names..."
+echo "[INFO] simplifying file names..."
 for f in *.fq.gz; do
   echo $f
    prefix=${f%%_*}                   
@@ -67,7 +67,7 @@ for f in *.fq.gz; do
 done
 
 #now we use fastp to clean the reads
-echo "Cleaning reads with fastp"
+echo "[INFO] Cleaning reads with fastp"
 cd "$WORKING_DIR"
 
  #first we create a tsv file specifying the sample name, read1 and read2 paths for the raw reads
@@ -118,3 +118,5 @@ done
 
 #remove temporary files
 rm *.temp
+
+echo "[DONE] Files stored in inputs/WGS/E4_G3_pTB007/"
