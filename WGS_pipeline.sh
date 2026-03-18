@@ -119,7 +119,7 @@ find "bam_files/" -maxdepth 1 -name "*.bam" > temp.tsv
 nfiles=$( cat temp.tsv | wc -l )
 binned_counts \
     -l temp.tsv \
-    -r "inputs/reference_genome/LdCL_original.fasta" \
+    -r "$REF_GENOME" \
     -o "count_files/" \
     -s $BIN_SIZE
 
