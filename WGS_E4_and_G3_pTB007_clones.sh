@@ -12,6 +12,11 @@ REF_GENOME="/scratch/antwerpen/grp/aitg/jcdujardin/reference_genomes/L_donovani/
 BIN_SIZE=1000
 
 #functions
+#create a function to call the `create_file_list.sh` script
+file_list(){
+    echo "[INFO] listing fastq files..."
+    "${WORKING_DIR}/git_modules/Illumina_tools/write_file_list.sh" "$@"
+}
 #create a function to run fastp
 run_fastp(){
     echo "[INFO] Running fastp on a total of $nfiles files..."
@@ -36,10 +41,10 @@ ref_mappability(){
     sbatch --wait "${WORKING_DIR}/git_modules/WGS_tools/compute_gc_and_mappability.sh" "$@"
 }
 
-#create a function to call the `create_file_list.sh` script
-file_list(){
-    echo "[INFO] listing fastq files..."
-    "${WORKING_DIR}/git_modules/Illumina_tools/write_file_list.sh" "$@"
+#create a function to run the aneuploidy analysis
+get_aneuploidy(){
+    echo "[INFO] determining aneuploidies..."
+    Rscript "${WORKING_DIR}/git_modules/WGS_tools/get_aneuploidy.R" "$@"
 }
 
 #copy fastq files
@@ -120,3 +125,9 @@ done
 rm *.temp
 
 echo "[DONE] Files stored in inputs/WGS/E4_G3_pTB007/"
+
+#now perform aneuploidy analysis
+get_aneuploidy \
+    --inputs_dir="inputs/WGS/E4_G3_pTB007/count_files/" \
+    --outputs_dir="inputs/WGS/E4_G3_pTB007/aneuploidy_analysis/"
+    --ploidy=2
