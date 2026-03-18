@@ -7,10 +7,15 @@ IFS=$'\n\t'
 #source the common variables and functions
 source set_env.sh
 
+#set variables
+FASTQ_DIR="/data/antwerpen/grp/aitg/jcdujardin/LeishMAP_WGS_E4_subclones_gabriel_20260313/X204SC26024633-Z01-F001/01.RawData/"
+OUTPUTS_DIR="$HPC_WD/inputs/E4_G3_pTB007/"
+
 #run the WGS pipeline
+rm -rf "$OUTPUTS_DIR"
 ./WGS_pipeline.sh \
-    --fastq-dir "/data/antwerpen/grp/aitg/jcdujardin/LeishMAP_WGS_E4_subclones_gabriel_20260313/X204SC26024633-Z01-F001/01.RawData/" \
-    --outputs-dir "$HPC_WD/inputs/E4_G3_pTB007/" \
+    --fastq-dir "$FASTQ_DIR" \
+    --outputs-dir "$OUTPUTS_DIR" \
     --ref-genome "$WGS_REF" \
     --bin-size 1000
 
