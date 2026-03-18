@@ -12,8 +12,9 @@ helper <- function(){
   cat("[INFO] Ussage: Rscript get_aneuploidy.R [options]\n")
   cat("\n")
   cat("Options:\n")
-  cat("   --inputs_dir      path to the directory containing the bedgraph files.\n")
-  cat("   --outputs_dir     path to the directory where outputs should be stored.\n")
+  cat("   --inputs_dir      (required) path to the directory containing the bedgraph files.\n")
+  cat("   --outputs_dir     (required) path to the directory where outputs should be stored.\n")
+  cat("   --ploidy          (optional) The expected ploidy of the samples. Defaults to 2.\n")
   if(interactive()){
     stop()
   }else{
@@ -22,7 +23,7 @@ helper <- function(){
 }
 ##function to validate the CLI arguments####
 validate_args <- function(x){
-  expected_args <- c("inputs_dir", "outputs_dir")
+  expected_args <- c("inputs_dir", "outputs_dir", "ploidy")
   
   for(arg in args){
     parts <- strsplit(arg, "=")[[1]]
@@ -118,6 +119,9 @@ correct_gc_bias <- function(x){
   return(x)
 }
 
+#set defaults####
+ploidy <- 2
+
 #get arguments####
 #args <- c("--inputs_dir=inputs/WGS/E4_G3_pTB007/count_files/", "--outputs_dir=outputs/WGS/E4_G3_pTB007") #meant for testing
 args <- commandArgs(trailingOnly = TRUE)
@@ -146,7 +150,7 @@ combined_data <- files %>%
 somies <- combined_data %>%
   filter(!to_remove) %>%
   group_by(sample, chromosome) %>%
-  summarise(somy = median(norm_read_count) * 2)
+  summarise(somy = median(norm_read_count) * ploidy)
 
 #create output dir
 dir.create(paste0(outputs_dir, "/", "individual_plots"), recursive = TRUE)
@@ -252,7 +256,7 @@ for(sample in names(files)){
     ungroup() %>%
     filter(!to_remove) %>%
     mutate(norm_read_count = norm_read_count/median(norm_read_count)) %>%
-    ggplot(aes(x = chromosome, y = norm_read_count * 2))+
+    ggplot(aes(x = chromosome, y = norm_read_count * ploidy))+
     geom_boxplot()+
     scale_y_continuous(name = "Somy")+
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -280,7 +284,7 @@ plot_list[["somies"]] <- somies %>%
 plot_list[["coverage"]] <- combined_data %>%
   filter(!to_remove) %>%
   group_by(sample, chromosome) %>%
-  mutate(norm_read_count = norm_read_count * 2) %>%
+  mutate(norm_read_count = norm_read_count * ploidy) %>%
   mutate(median_count = median(norm_read_count)) %>%
   ggplot(aes(x = start, y = norm_read_count))+
   geom_point(size = 0.1)+
@@ -288,7 +292,7 @@ plot_list[["coverage"]] <- combined_data %>%
   facet_grid(rows = vars(sample), cols = vars(chromosome), scale = "free_x", switch = "x")+
   scale_x_continuous(breaks = NULL, labels = NULL, name = NULL)+
   scale_y_continuous(breaks = seq(0, 10, length = 6))+
-  labs(y = "Normalized read count * 2", title = "coverage per 1kb bin")+
+  labs(y = "Normalized read count * ploidy", title = "coverage per 1kb bin")+
   theme_void()+
   theme(
     strip.clip = "off", 
