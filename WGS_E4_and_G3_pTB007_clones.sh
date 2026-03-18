@@ -9,7 +9,7 @@ source set_env.sh
 
 #set variables
 FASTQ_DIR="/data/antwerpen/grp/aitg/jcdujardin/LeishMAP_WGS_E4_subclones_gabriel_20260313/X204SC26024633-Z01-F001/01.RawData/"
-OUTPUTS_DIR="$HPC_WD/inputs/E4_G3_pTB007/"
+OUTPUTS_DIR="$HPC_WD/inputs/WGS/E4_G3_pTB007/"
 
 #run the WGS pipeline
 rm -rf "$OUTPUTS_DIR"
