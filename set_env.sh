@@ -30,32 +30,32 @@ file_list(){
 run_fastp(){
     echo "[INFO] Running fastp on a total of $nfiles files..."
     sbatch --array=1-${nfiles}%20 --wait "${HPC_WD}/git_modules/Illumina_tools/run_fastp.sh" "$@"
-    mkdir -p fastp_slurm_logs
-    mv slurm-* fastp_slurm_logs/
+    mkdir -p slurm_logs/fastp
+    mv slurm-* slurm_logs/fastp/
 }
 
 #create a function to run BWA-MEM
 run_bwa(){
     echo "[INFO] Running BWA-mem to map reads from $nfiles files to the reference genome."
     sbatch --array=1-${nfiles}%20 --wait "${HPC_WD}/git_modules/Illumina_tools/run_BWA-MEM.sh" "$@"
-    mkdir -p bwa_slurm_logs
-    mv slurm-* bwa_slurm_logs/
+    mkdir -p slurm_logs/bwa
+    mv slurm-* slurm_logs/bwa
 }
 
 #create a function to calculate binned counts from bam files
 binned_counts(){
     echo "[INFO] counting reads for a total of $nfiles bam files."
     sbatch --array=1-${nfiles}%20 --wait "${HPC_WD}/git_modules/WGS_tools/calc_read_count.sh" "$@"
-    mkdir -p count_slurm_logs
-    mv slurm-* count_slurm_logs/
+    mkdir -p slurm_logs/read_counting
+    mv slurm-* slurm_logs/read_counting
 }
 
 #create a function to calculate the mappability of the reference genome
 ref_mappability(){
     echo "[INFO] estimating mappability for ${BIN_SIZE}bp bins in the $( basename $REF_GENOME ) reference genome"
     sbatch --wait "${HPC_WD}/git_modules/WGS_tools/compute_gc_and_mappability.sh" "$@"
-    mkdir -p mappability_slurm_logs
-    mv slurm-* count_slurm_logs/
+    mkdir -p slurm_logs/mappability
+    mv slurm-* slurm_logs/mappability
 }
 
 #create a function to run the aneuploidy analysis
