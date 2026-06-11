@@ -124,13 +124,13 @@ binned_counts \
     -s $BIN_SIZE
 
 #finally we estimate genome mappability and bind it to the output count files
-rm -f *mappability.temp
+rm -f *mappability.tsv
 ref_mappability \
     --ref "$REF_GENOME" \
     --output-dir . \
     --bin-size $BIN_SIZE
 
-map_file=$( echo *mappability.temp )
+map_file=$( echo *mappability.tsv )
 
 #then we merge the files
 tail -n +2 "$map_file" | cut -f9 > mappability_column.temp

@@ -8,7 +8,7 @@ IFS=$'\n\t'
 source set_env.sh
 
 #set variables
-FASTQ_DIR="/data/antwerpen/grp/aitg/jcdujardin/LeishMAP_WGS_E4_subclones_gabriel_20260313/X204SC26024633-Z01-F001/01.RawData/"
+INPUT_FASTQ="/data/antwerpen/grp/aitg/jcdujardin/MADLEI_wgs_20210610/"
 OUTPUTS_DIR="$HPC_WD/inputs/WGS/E4_G3_pTB007/"
 
 #run the WGS pipeline
