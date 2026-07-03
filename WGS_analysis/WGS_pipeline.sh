@@ -82,20 +82,11 @@ source "${script_path}/set_env.sh"
 mkdir -p "${OUTPUTS_DIR}/fastq_files"
 cd "${OUTPUTS_DIR}"
 
-#copy the fastq files
-echo "[INFO] Coping fastq files"
-find "$FASTQ_DIR" -type f -regextype posix-extended -regex '.*\.(fastq|fq)(\.gz)?$' -exec cp -u {} "fastq_files/" \;
-
-#change permissions
-chmod -R 770 "fastq_files/"
-
-#rename the files to simpler names
-clean_fastq_names --fastq_dir "fastq_files/"
-
 #now that file names are clean, we write a tsv file listing them to be able to submit them as slurm arrays.
-file_list -i "fastq_files/" -o temp.tsv
+file_list -i "$FASTQ_DIR/" -o temp.tsv
 
 #now we use the tsv file to send fastp as a slurm array
+echo "cleaning reads with fastp"
 nfiles=$( cat temp.tsv | wc -l )
 run_fastp \
     -l "temp.tsv" \
@@ -106,6 +97,7 @@ rm temp.tsv
 file_list -i "cleaned_fastq_files/" -o temp.tsv
 
 #use it to run BWA-MEM 
+echo "mapping reads with bwa-mem"
 nfiles=$( cat temp.tsv | wc -l )
 run_bwa \
     -l temp.tsv \
@@ -114,8 +106,8 @@ run_bwa \
 
 #now use the generated bam files to count binned reads
 # Should be:
+echo "calculating binned counts..."
 find "bam_files/" -maxdepth 1 -name "*.bam" > temp.tsv
-
 nfiles=$( cat temp.tsv | wc -l )
 binned_counts \
     -l temp.tsv \
@@ -124,6 +116,7 @@ binned_counts \
     -s $BIN_SIZE
 
 #finally we estimate genome mappability and bind it to the output count files
+echo "estimating bin mappability..."
 rm -f *mappability.tsv
 ref_mappability \
     --ref "$REF_GENOME" \
@@ -144,6 +137,7 @@ done
 rm *.temp
 
 #now perform aneuploidy analysis
+echo "estimating aneuploidy"
 get_aneuploidy \
     --inputs_dir="count_files/" \
     --outputs_dir="aneuploidy_analysis/" \
