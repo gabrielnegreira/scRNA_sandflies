@@ -3,9 +3,15 @@ BH
 tidyverse
 BiocManager
 
+#file reading
+readODS
+
 #clustering
 mclust
 
 #plotting
+ggrepel
 ggalign
 ggridges
+scales
+ggh4x
