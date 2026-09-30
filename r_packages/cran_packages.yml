@@ -1,0 +1,11 @@
+#core packages
+BH
+tidyverse
+BiocManager
+
+#clustering
+mclust
+
+#plotting
+ggalign
+ggridges
