@@ -1,83 +1,90 @@
-#libraries
+#libraries####
 library(tidyverse)
 library(readODS)
 library(ggalign)
-#supporting functions
-#parameters
-inputs_dir <- "inputs/growth_curves/statistics/"
-wells_metadata <- "inputs/growth_curves/wells_metadata.ods"
+library(ggridges)
+library(ggrepel)
+library(scales)
+library(ggh4x)
+
+#source common variables
+source("env_vars.R") #sets `inputs_dir` and `outputs_dir`
+source("color_pallets.R")
+
+#parameters####
+statistics_dir <- paste0(inputs_dir, "/growth_curves/statistics/")
+wells_metadata <-  paste0(inputs_dir, "/growth_curves/wells_metadata.ods")
 cols_to_plot <- c("Has DNA % Parent", 
-                  "Is alive % Parent", 
+                  "Is alive % Parent",
+                  "Is alive % Total",
                   "Singlets % Parent", 
-                  "Singlets Median FSC-A", 
+                  "relative_cell_size", 
+                  "relative_DNA_size", 
+                  "multiplate_rate",
                   "Singlets Median B610-A", 
                   "Singlets GeoMean FSC-A",
                   "Singlets GeoMean B610-A", 
                   "Is alive SD Time",
                   "original_concentration(par/ml)")
 
-#load wells metadata
+#load files####
+##load wells metadata
 wells_metadata <- read_ods(wells_metadata, sheet = 1)
 
-#load files
-file_names <- list.files(inputs_dir, pattern = "*.csv")
-files <- paste0(inputs_dir, file_names)
-files <- lapply(files, read.csv, skip = 2, header = FALSE) %>%
+## load statistics files
+file_names <- list.files(statistics_dir, pattern = "*.csv")
+files <- paste0(statistics_dir, file_names)
+files <- lapply(files, utils::read.csv, skip = 2, header = FALSE) %>%
   lapply(
     function(x){
       colnames(x) <- x[1,] 
       x <- x[-1,]
       return(x)}
-    )
+  )
 names(files) <- file_names
 
-#format dataframes
-files <- lapply(files, function(x){
-  #fix colnames
-  colnames(x) <- gsub(":", "", colnames(x))
-  
-  #convert `####` to `NA`
-  x[x == "####"] <- NA
-  
-  #convert characters to their corresponding datatypes
-  x <- type.convert(x, as.is = TRUE, dec = ".")
-  
-  #convert percentages to numeric
-  x_percent <- x[grep("%", x)]
-  x_percent <- apply(x_percent, 2, function(y){
-    y <- as.numeric(gsub("%", "", y))
-    y <- y/100
-  })
-  x[grep("%", x)] <- x_percent
-  rm(x_percent)
-  
-
-  
-  #convert date to proper posix
-  x[["Record Time"]] <- as.POSIXct(x[["Record Time"]],
-                                   format = "%Y-%m-%d %H:%M:%S",
-                                   tz = "UTC")
-  
-  
-  #get row and column position of the wells
-  x <- x %>%
-    mutate(
-      well = gsub("01-Well-","",`Tube Name`),
-      row = str_extract(well, "[A-Z]"),
-      column = as.numeric(str_extract(well, "\\d+$")))
-  
-  #convert rows and columns to factor
-  x$row <- factor(x$row, LETTERS[1:8])
-  x$column <- factor(x$column, 1:12)
-  return(x)
-})
-
-#now append the list of objects into a single data frame
+#bind all files into a single dataframe####
 to_plot <- bind_rows(files, .id = "file")
+
+#format the dataframe####
+colnames(to_plot) <- gsub(":", "", colnames(to_plot))
+to_plot[to_plot == "####"] <- NA
+to_plot <- utils::type.convert(to_plot, as.is = TRUE, dec = ",")
+##convert percentages to numeric
+percent_values <- to_plot[grep("%", to_plot)]
+percent_values <- apply(percent_values, 2, function(y){
+  y <- gsub("%", "", y)
+  #since the table is european-formated, we need to deal with commas and points.
+  y <- gsub("\\.", "", y)
+  y <- gsub(",", ".", y)
+  y <- as.numeric(y)
+  y <- y/100
+})
+to_plot[grep("%", to_plot)] <- percent_values
+rm(percent_values)
+
+to_plot <- to_plot %>%
+  mutate(
+    failed = grepl("_failed", `Tube Name`),
+    `Tube Name` = gsub("_failed", "", `Tube Name`),
+    `Record Time` = as.POSIXct(`Record Time`, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    day = as.Date(to_plot$`Record Time`, tz = "UTC"),
+    day = as.integer(difftime(day, min(day, na.rm = TRUE), units = "days")),
+    well = gsub("01-Well-","",`Tube Name`),
+    row = str_extract(well, "[A-Z]"),
+    row = factor(row, LETTERS[1:8]),
+    column = as.numeric(str_extract(well, "\\d+$")),
+    column = factor(column, 1:12),
+    multiplate_rate = 1 - `Singlets % Parent`
+  ) %>%
+  group_by(file) %>%
+  mutate(relative_cell_size = `Singlets Median FSC-A` / median(`Singlets Median FSC-A`, na.rm = TRUE),
+         relative_DNA_size = `Singlets Median B610-A` / median(`Singlets Median B610-A`, na.rm = TRUE))
 
 #append the wells metadata
 to_plot <- to_plot %>%
-  left_join(wells_metadata, by = "well")
+  left_join(wells_metadata, by = "well") %>%
+  mutate(subclone = factor(subclone, levels = c("D6", "G8", "E4", "G3", "A9", "G6", "mother clone")))
 
 #plot wells metadata 
 plot_list <- list()
@@ -105,7 +112,7 @@ for(col in colnames(wells_metadata)){
 }
 final_plot <- ggalign::align_plots(!!!plot_list)
 scale_factor <- 1.5
-ggsave("outputs/growth_curves/plate_design.pdf", final_plot, width = 11.69*scale_factor, height = 8.27*scale_factor, create.dir = TRUE)
+ggsave(paste0(outputs_dir, "/growth_curves/plate_design.pdf"), final_plot, width = 11.69*scale_factor, height = 8.27*scale_factor, create.dir = TRUE)
 
 #plot the columns specified above
 plot_list <- list()
@@ -117,6 +124,8 @@ for(col in cols_to_plot){
   #format label column
   if(grepl("%", col)){
     plot$label <- paste0(round(plot$label * 100, 1), "%")
+  }else{
+    plot$label <- round(plot$label, 2)
   }
   
   if(max(plot[[col]], na.rm = TRUE) > 1000){
@@ -142,52 +151,117 @@ for(col in cols_to_plot){
   ncols <- ceiling(sqrt(length(unique(to_plot$file))))
   col <- gsub("%", "percent", col)
   col <- gsub("\\s*\\([^)]*\\)", "", col)
-  ggsave(paste0("outputs/growth_curves/", col, ".pdf"), plot + facet_wrap(vars(file)), width = 4+(1*ncols*scale_factor), height = 1*ncols*scale_factor, create.dir = TRUE)
+  ggsave(paste0(outputs_dir, "/growth_curves/", col, ".pdf"), plot + facet_wrap(vars(file)), width = 4+(1*ncols*scale_factor), height = 1*ncols*scale_factor, create.dir = TRUE)
 }
 
 final_plot <- ggalign::align_plots(!!!plot_list, ncol = 1)
 scale_factor <- 2
-ggsave("outputs/growth_curves/numeric_variables.pdf", final_plot, width = 11.69*scale_factor, height = 1*length(cols_to_plot)*scale_factor, create.dir = TRUE)
+ggsave(paste0(outputs_dir, "/growth_curves/numeric_variables.pdf"), final_plot, width = 11.69*scale_factor, height = 1*length(cols_to_plot)*scale_factor, create.dir = TRUE)
 
-#now plot the counts per day
-to_plot <- to_plot %>%
-  mutate(day = as.Date(to_plot$`Record Time`, tz = "UTC")) %>%
-  mutate(day = as.integer(difftime(day, min(day, na.rm = TRUE), units = "days")))
+#estimate average counts per sample
+to_plot <- to_plot %>%  
+  mutate(original_count = `original_concentration(par/ml)`) %>%
+  group_by(sample, day) %>%
+  mutate(corrected_count = ifelse(failed, NA, original_count)) %>%
+  mutate(corrected_count = ifelse(failed, mean(corrected_count, na.rm = TRUE), corrected_count)) %>%
+  mutate(mean_original_count = mean(original_count, na.rm = TRUE)) %>%
+  mutate(mean_corrected_count = mean(corrected_count, na.rm = TRUE)) %>%
+  ungroup()
 
-to_plot %>%  
+#visualize the raw growth curve with the means and failed data points
+plot <- to_plot %>%
+  filter(day != 5) %>%
   filter(!sample %in% c("blank", "not_stained")) %>%
-  filter(! file %in% names(files)[c(4,7,10)]) %>%
-  filter(! is.na(subclone)) %>%
-  mutate(label = `original_concentration(par/ml)`) %>%
-  mutate(label = format(label, scientific = TRUE, digits = 2)) %>%
-  group_by(subclone, passage, day) %>%
-  mutate(count = `original_concentration(par/ml)`) %>%
-  mutate(
-    med = median(count, na.rm = TRUE),
-    mad0 = mad(count, constant = 1, na.rm = TRUE),
-    outlier = if_else(mad0 > 0, abs(count - med) > 3 * mad0, FALSE)
-  ) %>%
-  #mutate(count = ifelse(outlier, NA, count)) %>%
-  mutate(count = mean(count, na.rm = TRUE)) %>%
-  ungroup() %>%
-  filter(!day %in% c(5)) %>%
-  ggplot(aes(x = day, y = count, group = well, color = aneu_group))+
-  geom_line()+
-  facet_grid(rows = vars(subclone))
-  
-#quick check if using 200 ul instead of 100 ul affect counting
-dil_diff <- to_plot %>%
-  filter(day %in% c(4, 6)) %>%
-  select(well, day, file, `original_concentration(par/ml)`) %>%
-  group_by(day) %>%
-  mutate(dilution = ifelse(grepl("200", file), "200ul", "100ul")) %>%
-  select(well, day, dilution, `original_concentration(par/ml)`) %>%
-  pivot_wider(names_from = dilution, values_from = `original_concentration(par/ml)`) %>%
-  mutate(diff = abs(`200ul` - `100ul`)) %>%
-  arrange(day, desc(diff))
+  filter(! is.na(subclone)) 
 
-dil_diff %>%
-  ggplot(aes(x = `100ul`, y = `200ul`, label = well))+
-  geom_text()+
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed")+
-  facet_grid(cols = vars(day))
+plot <- plot %>%
+  ggplot(aes(x = as.numeric(day), y = original_count, group = well))+
+  geom_line(linewidth = 0.2, color = "lightgrey")+
+  geom_line(aes(y = mean_corrected_count), linetype = 'dashed', color = "black", linewidth = 1)+
+  geom_text(aes(label = well, color = failed))+
+  scale_x_continuous(breaks = unique(plot$day))+
+  ggtitle("Raw growth curves", subtitle = "dashed lines: mean between triplicates (failed datapoints ignored); datapoint labels = well in the growth curve plate")+
+  facet_wrap(vars(sample))+
+  theme_bw()+
+  theme(panel.grid.minor.x = element_blank())
+
+ggsave(paste0(outputs_dir, "/growth_curves/raw_growth_curves.pdf"), plot, width = 11.69, height = 9, scale = 2, create.dir = TRUE)
+
+#visualize growth profile of passage 2 parasites per aneuploidy group
+plot_data <- to_plot %>%
+  filter(subclone != "mother clone") %>%
+  filter(day != 5) %>%
+  filter(day < max(day, na.rm = TRUE)) %>%
+  #filter(day < 7) %>%
+  filter(!sample %in% c("blank", "not_stained")) %>%
+  filter(! is.na(subclone)) %>%
+  select(day, mean_corrected_count, aneu_group, well, subclone, passage, sample) %>%
+  distinct() 
+
+label_data <- plot_data %>%
+  filter(passage == 2) %>%
+  group_by(sample) %>%
+  filter(day == 8) %>%
+  slice(1) %>%  # In case of ties, take first occurrence
+  ungroup()
+
+plot <- plot_data %>%
+  filter(passage == 2) %>%
+  ggplot(aes(x = day, y = mean_corrected_count, color = aneu_group, group = sample, label = subclone))+
+  geom_line()+
+  geom_point()+
+  geom_text_repel(
+    data = label_data, 
+    min.segment.length = 0,
+    force = 20,
+    nudge_x = 2,
+    nudge_y = 3,
+    color = "black"
+  )+
+  scale_x_continuous(breaks = unique(plot_data$day))+
+  scale_color_manual(values = aneu_colors)+
+  facet_grid(rows = vars(passage))+
+  labs(y = "live parasites/ml")+
+  theme_bw()+
+  theme(panel.grid.minor.x = element_blank())
+
+#visualize how each subclone progresses over passages
+strip_colors <- plot_data %>%
+  filter(passage == 2) %>%
+  select(subclone, aneu_group) %>%
+  distinct() %>%
+  mutate(color = aneu_colors[aneu_group]) %>%
+  select(subclone, color) %>%
+  deframe()
+
+strip_colors <- strip_colors[levels(plot_data$subclone)]
+label_data <- plot_data %>%
+  group_by(sample) %>%
+  filter(day == 8) %>%
+  slice(1) %>%  # In case of ties, take first occurrence
+  ungroup()
+
+plot_2 <- plot_data %>%
+  ggplot(aes(x = day, y = mean_corrected_count, color = aneu_group, group = sample, label = paste0("P", passage)))+
+  geom_line()+
+  geom_point()+
+  geom_text_repel(
+    data = label_data, 
+    min.segment.length = 0,
+    force = 20,
+    nudge_x = 2,
+    nudge_y = 3,
+    color = "black"
+  )+
+  facet_wrap2(vars(subclone), nrow = 1, strip = strip_themed(background_x = elem_list_rect(fill = strip_colors))) +
+  scale_x_continuous(breaks = unique(plot_data$day))+
+  scale_color_manual(values = aneu_colors)+
+  labs(y = "live parasites/ml")+
+  theme_bw()+
+  theme(panel.grid.minor.x = element_blank())
+
+final_plot <- ggalign::align_plots(plot, plot_2, nrow = 1, widths = c(0.2, 0.8))
+final_plot
+ggsave(paste0(outputs_dir, "/growth_curves/growth_curves_aneuploidy.pdf"), final_plot, width = 11.69, height = 2, scale = 2, create.dir = TRUE)
+
+
