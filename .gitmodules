@@ -7,3 +7,6 @@
 [submodule "git_modules/flowcytools"]
 	path = git_modules/flowcytools
 	url = git@github.com:gabrielnegreira/flowcytools.git
+[submodule "git_modules/scRNA_tools"]
+	path = git_modules/scRNA_tools
+	url = git@github.com:gabrielnegreira/scRNA_tools.git
