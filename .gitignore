@@ -17,12 +17,6 @@
 *.cloupe
 *.xlsx
 *.txt
-# Ignore everything in inputs/ and outputs/
-inputs/**
-outputs/**
-# But keep all .gitkeep files (any depth) so the directories themselves are shown in the repo
-!inputs/**/*.gitkeep
-!outputs/**/*.gitkeep
 # Exclude temporary and environment files 
 logs/
 tmp/
@@ -37,3 +31,7 @@ tmp/
 .DS_Store
 .RData
 *.Rproj
+
+#exclude obsidian-specific files
+*.obsidian/
+
