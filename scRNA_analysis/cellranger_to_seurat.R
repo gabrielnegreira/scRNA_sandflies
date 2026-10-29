@@ -14,14 +14,14 @@ libraries <- c(`105118-001-001` = "B12", `105118-001-002` = "E4", `105118-001-00
 
 ## set paths####
 cellranger_out_dir <- "../inputs/scRNA/cellranger_outputs/"
-out_seurat_path <- "../inputs/scRNA/seurat_objects/BPK081_subclones_unprocessed.rds"
+out_seurat_path <- "../inputs/scRNA/seurat_objects/seuratObj_unprocessed.rds"
 ref_annotation <- "../inputs/reference_genome/LdCL_annotation_for_cellranger.gtf"
 ref_multicopy_genes <- "../inputs/reference_genome/LdCL_multicopy_genes.xlsx"
 Lmj_ref_obj <- "../inputs/scRNA/seurat_objects/Lmj_Atlas.rds"
 Lmj_to_Ld <- "../inputs/reference_genome/Lmj_to_LdCL_one_to_one.xlsx"
 TrypTag_data <- "../inputs/external_data/TrypTag_localizations.tsv"
 Tb_to_Ld <- "../inputs/reference_genome/Tb_to_LdCL_TriTrypDB.tsv"
-flag_aneu_script <- "scRNA_analysis/BPK081_subclones_scRNA_flag_aneuploid_cells.R"
+flag_aneu_script <- "scRNA_analysis/flag_aneuploid_cells.R"
 
 ##fix issues with memory limit####
 library(future)

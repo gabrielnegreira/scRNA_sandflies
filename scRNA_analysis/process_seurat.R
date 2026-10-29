@@ -1,8 +1,7 @@
 #this script does the general analysis, like dimensionality reduction, DE genes, etc.
 
 #prepare the environment####
-##clean the environment####
-source("clean_environment.R")
+rm(list = ls(all.names = TRUE))
 
 ##load libraries####
 #library(glmGamPoi)
@@ -14,36 +13,46 @@ library(Cairo)
 library(ggalluvial)
 library(ggrepel)
 library(ggalign)
-source("custom_functions.R")
-source("GO_tools.R")
+source("git_modules/scRNA_tools/scRNA_functions.R")
+source("git_modules/GO_tools/GO_tools.R")
+
 
 ##set parameters####
-seuratObj <- readRDS(file = "project_specific/BPK081_subclones/outputs/BPK081_subclones_unprocessed.rds") #%>%
-  #subset(subset = subclone %in% c("B12", "E4"))
-working_dir <- "project_specific/BPK081_subclones/outputs/"
 analysis_name <- "all_subclones_20_dims_annoy"
 resolutions_to_try <- c(0:10)/10
 chosen_resolution <- 0.4
 pca_dims <- 1:20
+
+#set paths
+seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_unprocessed.rds"
+out_dir <- paste("../outputs/scRNA/")
+cell_cycle_script <- "scRNA_analysis/score_cell_cycle.R"
+cell_cycle_tb_markers <- "../inputs/external_data/Tb_cell_cycle_genes.xlsx"
+multicopy_genes_file <- "../inputs/reference_genome/LdCL_multicopy_genes.xlsx"
+tb_to_ld_file <- "../inputs/reference_genome/Tb_to_LdCL_TriTrypDB.tsv"
+GO_annotations <- "../inputs/reference_genome/LdCL_GO_terms_updated.tsv"
 
 ##fix issues with memory limit####
 library(future)
 options(future.globals.maxSize = (32*(1024^3)))
 
 ##create output directory if needed####
-out_dir <- paste(working_dir, analysis_name, sep = "/")
-
-
-suppressWarnings(dir.create(out_dir, recursive = TRUE))
-suppressWarnings(dir.create(out_dir, recursive = TRUE))
 suppressWarnings(dir.create(out_dir, recursive = TRUE))
 
+
+#actual analysis####
+##read the seurat object####
+seuratObj <- readRDS(file = seuratObj_path)
+
+##split the seurat object per library####
 #first part of the analysis must be done on each library individually, so here we split the seuratobj by library
 misc_data <- seuratObj@misc #this is lost after splitting so we save it before.
 seuratObj <- SplitObject(seuratObj, split.by = "orig.ident")
 
-#remove outlier cells and lowly expressed genes####
-##update cells metadata to include expression of mitochondrial and ribosomal genes
+##analyse each library separated####
+
+###remove outlier cells and lowly expressed genes####
+#####update cells metadata to include expression of mitochondrial and ribosomal genes
 mito_features <- rownames(filter(seuratObj[[1]][["RNA"]]@meta.data, is_mitochondrial))
 ribo_features <- rownames(filter(seuratObj[[1]][["RNA"]]@meta.data, is_ribosomal))
 
@@ -51,7 +60,7 @@ seuratObj <- lapply(seuratObj, PercentageFeatureSet, features = mito_features , 
 seuratObj <- lapply(seuratObj, PercentageFeatureSet, features = ribo_features , col.name = "percent_ribo")
 
 
-##flag outlier cells and remove them
+###flag outlier cells and remove them
 seuratObj <- lapply(seuratObj, function(x){
   x@meta.data <- x@meta.data %>%
     rownames_to_column("cell_barcode") %>%
@@ -65,25 +74,24 @@ seuratObj <- lapply(seuratObj, function(x){
   return(x)
 })
 
-#Normalize and scale genes####
+###Normalize and scale genes####
 seuratObj <- seuratObj %>%
   lapply(NormalizeData) %>%
   lapply(ScaleData) %>%
   lapply(SCTransform, return.only.var.genes = FALSE)
 
-#join the datasets####
+##join the datasets####
 seuratObj <- merge(seuratObj[[1]], seuratObj[-1])
 seuratObj@misc <- misc_data #restore misc data
 rownames(seuratObj[["RNA"]]@meta.data) <- rownames(seuratObj[["RNA"]]) #restore rownames in metadata (lost after split/merge)
 
-#find variable features####
+##find variable features####
 seuratObj <- FindVariableFeatures(seuratObj)
 
-#fix per-library SCT
+##fix per-library SCT####
 seuratObj <- PrepSCTFindMarkers(seuratObj)
 
-
-#run PCA####
+##run PCA####
 seuratObj <- RunPCA(seuratObj, verbose = FALSE)
 ##choose number of PCAs to use for downstream analysis
 options <- c(50,  max(pca_dims) + 20)
@@ -125,8 +133,7 @@ dev.off()
 show(plot)
 
 #define cell cycle
-source("project_specific/BPK081_subclones/score_cell_cycle.R")
-
+source(cell_cycle_script)
 
 #visualize the proportion of clusters in each clone####
 plot <- seuratObj@meta.data %>%
@@ -320,7 +327,7 @@ plot <- DoHeatmap_plus(seuratObj,
 ggsave(plot = plot, filename = paste0(out_dir, "/Heatmap_marker_genes.pdf"), height = 20, width = 30)
 
 #perform GO analysis####
-GO_terms <- read_delim("common_inputs/LdCL_ref/LdCL_GO_terms_updated.tsv") %>%
+GO_terms <- read_delim(GO_annotations) %>%
   mutate(gene_id = gsub("_", "-", gene_id)) %>%
   mutate(gene_id = paste0(gene_id, "-t42-1"))
 
@@ -391,4 +398,5 @@ show(plot_grid(plotlist = plot_list, ncol = 1, align = "vh", rel_heights = panel
 dev.off()
 
 #save the seurat object to disk
-saveRDS(seuratObj, file = paste0(out_dir, "/seuratObj.rds"))
+dirname(seuratObj_path)
+saveRDS(seuratObj, file = paste0(dirname(seuratObj_path), "/SeuratObj_processed.rds"))

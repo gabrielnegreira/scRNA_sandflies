@@ -170,7 +170,7 @@ to_plot <- to_plot %>%
 
 #visualize the raw growth curve with the means and failed data points
 plot <- to_plot %>%
-  filter(day != 5) %>%
+  filter(day != 5) %>% #day 5 reading failed
   filter(!sample %in% c("blank", "not_stained")) %>%
   filter(! is.na(subclone)) 
 
@@ -263,5 +263,43 @@ plot_2 <- plot_data %>%
 final_plot <- ggalign::align_plots(plot, plot_2, nrow = 1, widths = c(0.2, 0.8))
 final_plot
 ggsave(paste0(outputs_dir, "/growth_curves/growth_curves_aneuploidy.pdf"), final_plot, width = 11.69, height = 2, scale = 2, create.dir = TRUE)
+
+#plot doubling time
+doubling_time <- to_plot %>%
+  filter(day <= 2 & day >= 1) %>%
+  filter(!sample %in% c("blank", "not_stained")) %>%
+  filter(! is.na(subclone)) %>%
+  select(sample, day, `Record Time`, corrected_count) %>%
+  group_by(sample, day) %>%
+  mutate(replicate = row_number()) %>%
+  mutate(corrected_count = log2(corrected_count)) %>%
+  ungroup() %>%
+  pivot_wider(
+    names_from = day,
+    values_from = c(`Record Time`, corrected_count),
+    names_sep = "_day"
+  ) %>%
+  mutate(
+    elapsed_hours = as.numeric(
+      difftime(`Record Time_day2`, `Record Time_day1`, units = "hours")
+    ),
+    log2_growth = corrected_count_day2 - corrected_count_day1,
+    doubling_time_hours = elapsed_hours / log2_growth,
+    doubling_time_days = doubling_time_hours / 24
+  ) %>%
+  left_join(
+    wells_metadata %>%
+      select(sample, subclone, passage, aneu_group) %>%
+      distinct(),
+    by = "sample"
+  ) 
+
+doubling_time %>%
+  filter(subclone != "mother clone") %>%
+  ggplot(aes(x = subclone, y = doubling_time_hours, group = sample))+
+  geom_boxplot()+
+  geom_jitter()+
+  facet_grid(cols = vars(aneu_group), rows = vars(passage))
+
 
 

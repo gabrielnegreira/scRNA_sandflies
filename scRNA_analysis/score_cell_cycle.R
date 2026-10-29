@@ -1,16 +1,14 @@
-source("custom_functions.R")
-#source("2_set_common_variables.R")
 ##cell cycle scoring####
 #link Tb to LdCl
 expressed <- rowMeans(seuratObj)
 expressed <- expressed[expressed > 0.1]
 #get list of cell cycle genes from T.brucei with LdCL orthologs
-tb_cell_cycle <- xlsx::read.xlsx("common_inputs/T_brucei_data/Tb_cell_cycle_genes.xlsx", sheetIndex = 1)
+tb_cell_cycle <- xlsx::read.xlsx(cell_cycle_tb_markers, sheetIndex = 1)
 #get the list with the representatives of multicopy genes
-multicopy_genes <- readxl::read_excel("common_inputs/LdCL_ref/LdCL_multicopy_genes.xlsx")
+multicopy_genes <- readxl::read_excel(multicopy_genes_file)
 
 #create a list with genes for each cell cycle phase
-cell_cycle_genes <- readr::read_delim("common_inputs/T_brucei_data/Tb_to_LdCL.tsv", delim = "\t") %>%
+cell_cycle_genes <- readr::read_delim(tb_to_ld_file, delim = "\t") %>%
   dplyr::rename(LdCL = source_id, Tb = `Input Ortholog(s)`) %>%
   select(LdCL, Tb) %>%
   separate_rows(Tb, sep = ",") %>%
