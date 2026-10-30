@@ -5,10 +5,10 @@ expressed <- expressed[expressed > 0.1]
 #get list of cell cycle genes from T.brucei with LdCL orthologs
 tb_cell_cycle <- xlsx::read.xlsx(cell_cycle_tb_markers, sheetIndex = 1)
 #get the list with the representatives of multicopy genes
-multicopy_genes <- readxl::read_excel(multicopy_genes_file)
+multicopy_genes <- readxl::read_excel(ref_multicopy_genes)
 
 #create a list with genes for each cell cycle phase
-cell_cycle_genes <- readr::read_delim(tb_to_ld_file, delim = "\t") %>%
+cell_cycle_genes <- readr::read_delim(Tb_to_Ld, delim = "\t") %>%
   dplyr::rename(LdCL = source_id, Tb = `Input Ortholog(s)`) %>%
   select(LdCL, Tb) %>%
   separate_rows(Tb, sep = ",") %>%

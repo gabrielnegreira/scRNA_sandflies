@@ -9,19 +9,15 @@ library(rtracklayer)
 library(tidyverse)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 
+#get required paths
+source("scRNA_analysis/env.R")
+
 ##set parameters####
 libraries <- c(`105118-001-001` = "B12", `105118-001-002` = "E4", `105118-001-003` = "G3", `105118-001-004` = "G6")
 
 ## set paths####
 cellranger_out_dir <- "../inputs/scRNA/cellranger_outputs/"
-out_seurat_path <- "../inputs/scRNA/seurat_objects/seuratObj_unprocessed.rds"
-ref_annotation <- "../inputs/reference_genome/LdCL_annotation_for_cellranger.gtf"
-ref_multicopy_genes <- "../inputs/reference_genome/LdCL_multicopy_genes.xlsx"
-Lmj_ref_obj <- "../inputs/scRNA/seurat_objects/Lmj_Atlas.rds"
-Lmj_to_Ld <- "../inputs/reference_genome/Lmj_to_LdCL_one_to_one.xlsx"
-TrypTag_data <- "../inputs/external_data/TrypTag_localizations.tsv"
-Tb_to_Ld <- "../inputs/reference_genome/Tb_to_LdCL_TriTrypDB.tsv"
-flag_aneu_script <- "scRNA_analysis/flag_aneuploid_cells.R"
+seurat_out_dir <- "../inputs/scRNA/seurat_objects/"
 
 ##fix issues with memory limit####
 library(future)
@@ -115,7 +111,19 @@ seuratObj <- meta_from_ref(query_obj = seuratObj,
 #create a color vector for the stages
 seuratObj@misc$colors$atlas.stages.ident <- create_colors(seuratObj$atlas.stages.ident)
 
-#store the seurat object to disk
-saveRDS(seuratObj, file = out_seurat_path)
-rm(seuratObj)
+#store the seurat objects to disk####
+Subsets <- list(
+  c("B12", "E4", "G3", "G6"),
+  c("B12", "E4"),
+  "B12",
+  "E4",
+  "G3",
+  "G6"
+)
 
+lapply(Subsets, function(x){
+  file_name <- paste0(paste0(x, collapse = "_"),  "_seurat_unprocessed.rds")
+  seuratObj %>%
+    subset(subclone %in% x) %>%
+    saveRDS(file = paste0(seurat_out_dir, file_name))
+})
