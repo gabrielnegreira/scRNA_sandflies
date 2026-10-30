@@ -1,7 +1,11 @@
-#flow cytometry analysis
-#RProtoBufLib
-#Rhdf5lib
-#cytolib
-#flowCore
-#flowWorkspace
-#openCyto
+BiocParallel
+clusterExperiment
+ComplexHeatmap
+slingshot
+tradeSeq
+flowCore
+flowWorkspace
+openCyto
+rtracklayer
+DESeq2
+MAST

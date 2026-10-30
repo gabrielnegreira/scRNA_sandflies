@@ -16,29 +16,29 @@ library(ggalign)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 source("git_modules/GO_tools/GO_tools.R")
 
+#get paths to external scripts and sources
+source("scRNA_analysis/env.R")
 
 ##set parameters####
-analysis_name <- "all_subclones_20_dims_annoy"
 resolutions_to_try <- c(0:10)/10
 chosen_resolution <- 0.4
 pca_dims <- 1:20
 
 #set paths
-seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_unprocessed.rds"
-out_dir <- paste("../outputs/scRNA/")
-cell_cycle_script <- "scRNA_analysis/score_cell_cycle.R"
-cell_cycle_tb_markers <- "../inputs/external_data/Tb_cell_cycle_genes.xlsx"
-multicopy_genes_file <- "../inputs/reference_genome/LdCL_multicopy_genes.xlsx"
-tb_to_ld_file <- "../inputs/reference_genome/Tb_to_LdCL_TriTrypDB.tsv"
-GO_annotations <- "../inputs/reference_genome/LdCL_GO_terms_updated.tsv"
+#seuratObj_path <- "../inputs/scRNA/seurat_objects/B12_E4_G3_G6_seurat_unprocessed.rds"
+seuratObj_path <- "../inputs/scRNA/seurat_objects/B12_E4_seurat_unprocessed.rds"
+out_dir <- "../outputs/scRNA/"
+
+#set outputs paths based on input object name
+out_seurat_name <- gsub("unprocessed", "processed", basename(seuratObj_path))
+out_dir <- paste0(out_dir, gsub("_unprocessed.rds", "", basename(seuratObj_path)))
 
 ##fix issues with memory limit####
 library(future)
 options(future.globals.maxSize = (32*(1024^3)))
 
 ##create output directory if needed####
-suppressWarnings(dir.create(out_dir, recursive = TRUE))
-
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 #actual analysis####
 ##read the seurat object####
@@ -327,7 +327,7 @@ plot <- DoHeatmap_plus(seuratObj,
 ggsave(plot = plot, filename = paste0(out_dir, "/Heatmap_marker_genes.pdf"), height = 20, width = 30)
 
 #perform GO analysis####
-GO_terms <- read_delim(GO_annotations) %>%
+GO_terms <- read_delim(ref_GO_annotations) %>%
   mutate(gene_id = gsub("_", "-", gene_id)) %>%
   mutate(gene_id = paste0(gene_id, "-t42-1"))
 
@@ -398,5 +398,4 @@ show(plot_grid(plotlist = plot_list, ncol = 1, align = "vh", rel_heights = panel
 dev.off()
 
 #save the seurat object to disk
-dirname(seuratObj_path)
-saveRDS(seuratObj, file = paste0(dirname(seuratObj_path), "/SeuratObj_processed.rds"))
+saveRDS(seuratObj, file = paste0(dirname(seuratObj_path), "/", out_seurat_name))

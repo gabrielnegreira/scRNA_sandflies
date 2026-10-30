@@ -32,6 +32,14 @@ tmp/
 .RData
 *.Rproj
 
+#exlude renv files
+# Ignore all project-local renv files
+renv/*
+
+# Keep renv bootstrap/configuration under version control
+!renv/activate.R
+!renv/settings.json
+
 #exclude obsidian-specific files
 *.obsidian/
 
