@@ -2,6 +2,7 @@
 # it will also append several gene metadata based on external sources such as TrypTag,
 #clean the environment####
 rm(list = ls(all.names = TRUE))
+gc()
 
 ##load libraries####
 library(Seurat)
@@ -13,7 +14,13 @@ source("git_modules/scRNA_tools/scRNA_functions.R")
 source("scRNA_analysis/env.R")
 
 ##set parameters####
-libraries <- c(`105118-001-001` = "B12", `105118-001-002` = "E4", `105118-001-003` = "G3", `105118-001-004` = "G6")
+libraries <- c(
+  `107706-001-001` = "day00", 
+  `107706-001-002` = "day02", 
+  `107706-001-003` = "day04", 
+  `107706-001-004` = "day06",
+  `107706-001-005` = "day10"
+  )
 
 ## set paths####
 cellranger_out_dir <- "../inputs/scRNA/cellranger_outputs/"
@@ -36,12 +43,12 @@ for(dir in dirs){
   seuratObj_list[[sample_name]] <- CreateSeuratObject(count_matrix, project = library)
 }
 ##merge the list of seurat objects
-seuratObj <- merge(seuratObj_list[[1]], seuratObj_list[2:4],  add.cell.ids = c(1:length(seuratObj_list)))
+seuratObj <- merge(seuratObj_list[[1]], seuratObj_list[2:5],  add.cell.ids = c(1:length(seuratObj_list)))
 seuratObj <- JoinLayers(seuratObj)
 rm(list = c("seuratObj_list", "count_matrix"))
 
 ##add the sample name to each cell
-seuratObj@meta.data$subclone <- libraries[seuratObj@meta.data$orig.ident]
+seuratObj@meta.data$pbm_day <- libraries[seuratObj@meta.data$orig.ident]
 
 ##create features metadata####
 ##get genome anotation
@@ -72,8 +79,8 @@ TrypTag_localizations <- read_delim(Tb_to_Ld) %>%
   column_to_rownames("LdCL")
   
 #combine the metadata into the seurat object
-seuratObj[["RNA"]]@meta.data <- data.frame(cellranger_id = Read10X(paste0(cellranger_out_dir,"/105118-001-001/filtered_feature_bc_matrix/"), gene.column = 1)@Dimnames[[1]],
-                                           cellranger_name = Read10X(paste0(cellranger_out_dir,"/105118-001-001/filtered_feature_bc_matrix/"), gene.column = 2)@Dimnames[[1]]) %>%
+seuratObj[["RNA"]]@meta.data <- data.frame(cellranger_id = Read10X(paste0(dirs[[1]], "/filtered_feature_bc_matrix/"), gene.column = 1)@Dimnames[[1]],
+                                           cellranger_name = Read10X(paste0(dirs[[1]], "/filtered_feature_bc_matrix/"), gene.column = 2)@Dimnames[[1]]) %>%
   cbind(., genome_annotation[match(.$cellranger_id, genome_annotation$transcript_id),]) %>%
   mutate(seurat_id = gsub("_", "-", cellranger_id)) %>%
   mutate(is_mitochondrial = grepl("ldbpk_37", tolower(cellranger_id))) %>%
@@ -91,9 +98,6 @@ seuratObj[["RNA"]]@meta.data <- data.frame(cellranger_id = Read10X(paste0(cellra
 
 rm(list = c("dirs", "dir", "library", "libraries", "sample_name", "genome_annotation"))
 
-#tag aneuploid cells####
-source(flag_aneu_script)
-
 #Map to Lmj atlas####
 Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>%
   select(seurat_id, Lm) %>%
@@ -105,25 +109,11 @@ seuratObj <- meta_from_ref(query_obj = seuratObj,
                            metadata_to_extract = "stages.ident",
                            prefix = "atlas.",
                            normalization_method = "SCT",
-                           ignore_values = list(stages.ident = "amastigotes"),
+                           #ignore_values = list(stages.ident = "amastigotes"),
                            id_conversion = Ld_to_Lmj)
 
 #create a color vector for the stages
 seuratObj@misc$colors$atlas.stages.ident <- create_colors(seuratObj$atlas.stages.ident)
 
-#store the seurat objects to disk####
-Subsets <- list(
-  c("B12", "E4", "G3", "G6"),
-  c("B12", "E4"),
-  "B12",
-  "E4",
-  "G3",
-  "G6"
-)
-
-lapply(Subsets, function(x){
-  file_name <- paste0(paste0(x, collapse = "_"),  "_seurat_unprocessed.rds")
-  seuratObj %>%
-    subset(subclone %in% x) %>%
-    saveRDS(file = paste0(seurat_out_dir, file_name))
-})
+#write the object to disk
+saveRDS(seuratObj, "../inputs/scRNA/seurat_objects/seuratObj_unprocessed.rds")
