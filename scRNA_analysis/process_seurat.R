@@ -132,6 +132,14 @@ show(plot)
 dev.off()
 show(plot)
 
+#Run PHATE####
+seuratObj <- RunPHATE(seuratObj, dims = pca_dims)
+plot <- DimPlot(seuratObj, split.by = "subclone", cols = seuratObj@misc$colors$seurat_clusters)
+CairoPDF(paste0(out_dir, "/UMAP_clusters.pdf"), height = 4, width = 16)
+show(plot)
+dev.off()
+show(plot)
+
 #define cell cycle
 source(cell_cycle_script)
 

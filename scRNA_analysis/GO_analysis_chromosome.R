@@ -7,7 +7,7 @@ source("git_modules/GO_tools/GO_tools.R")
 out_dir <- "../outputs/"
 
 #get the marker genes
-marker_genes <- readxl::read_xlsx("../outputs/scRNA/default_seurat_processing/cluster_markers.xlsx")
+marker_genes <- readxl::read_xlsx("../outputs/scRNA/B12_E4_G3_G6_seurat/cluster_markers.xlsx")
 GO_terms <- read.delim("../inputs/reference_genome/LdCL_GO_terms_updated.tsv") %>%
   select(gene_id, simplified_term)
 
@@ -111,6 +111,6 @@ plot_scale <- 1.8
 ggsave(paste0(out_dir, "/chromosomes_GO.pdf"), plot = final_plot, width = 6 * plot_scale, height = 10 * plot_scale)
 
 #check which genes reger to GO tetrapyrrole byosynthetic process
-GOI <- "GO:0033014"
+GOI <- c("GO:0033014", "GO:0007023")
 GO_terms %>%
   filter(chromosome == 20 & simplified_term %in% GOI)

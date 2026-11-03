@@ -47,7 +47,8 @@ vis_reduction <- "phate"
 dims_to_use <- 1:2
 cluster_variable <- "atlas.stages.ident"
 conditions_col <- "aneu_group"
-start_cluster <- "procyclics"
+start_cluster <- "leptomonads"
+lineages_to_test <- c(2, 3)
 #end_cluster <- "early_g1"
 #end_cluster <- "g2_m"
 #create a subdirectory where the trajectory results will be stored
@@ -115,9 +116,6 @@ for(lineage in names(slingLineages(seuratObj@misc$slingshot))){
   plot_list[[lineage]] <- plot
 }
 
-#print lineage ordering
-seuratObj@misc$slingshot@metadata$lineages
-
 #combine the plots
 plot_number <- plot_number + 1
 plot <- plot_grid(plotlist = plot_list, nrow = 1)
@@ -126,11 +124,13 @@ show(plot)
 dev.off()
 show(plot)
 
+#print lineage ordering
+seuratObj@misc$slingshot@metadata$lineages
 
-#set defaults
+#request which lineages to test
 if(is.null(lineages_to_test)){
-  lineages_to_test <- names(slingLineages(seuratObj@misc$slingshot))
-  lineages_to_test <- as.integer(gsub("Lineage", "", lineages_to_test))
+  lineages_to_test <- readline("Which lineage(s) are you interested in? (Provide comma-separated numeric list - ex. '2,3')") 
+  lineages_to_test <- as.integer(unlist(strsplit(lineages_to_test, split = ",")))
 }
 
 #plot just the selected lineages over the reduction
@@ -170,7 +170,7 @@ plot <- to_plot %>%
              fill = .data[[cluster_variable]]))+
   geom_density(alpha = 0.5, aes(y = after_stat(count)))+
   #geom_density_ridges(alpha = 0.5, panel_scaling = FALSE, scale = 5, from = 0, to = max_pseudotime, bandwidth = 0.3)+
-  #scale_fill_manual(values = seuratObj@misc$colors[[cluster_variable]])+
+  scale_fill_manual(values = seuratObj@misc$colors[[cluster_variable]])+
   #labs(y = NULL, x = "Pseudotime", fill = "Annotation")+
   facet_grid(rows = vars(lineage), cols = vars(.data[[conditions_col]]))+
   #guides(fill = "none")+
