@@ -8,10 +8,11 @@ library(scales)
 library(ggh4x)
 
 #source common variables
-source("env_vars.R") #sets `inputs_dir` and `outputs_dir`
 source("color_pallets.R")
 
 #parameters####
+inputs_dir <- "../inputs/" #relative to repo root
+outputs_dir <- "../outputs/growth_curves"
 statistics_dir <- paste0(inputs_dir, "/growth_curves/statistics/")
 wells_metadata <-  paste0(inputs_dir, "/growth_curves/wells_metadata.ods")
 cols_to_plot <- c("Has DNA % Parent", 
@@ -112,7 +113,7 @@ for(col in colnames(wells_metadata)){
 }
 final_plot <- ggalign::align_plots(!!!plot_list)
 scale_factor <- 1.5
-ggsave(paste0(outputs_dir, "/growth_curves/plate_design.pdf"), final_plot, width = 11.69*scale_factor, height = 8.27*scale_factor, create.dir = TRUE)
+ggsave(paste0(outputs_dir, "/plate_design.pdf"), final_plot, width = 11.69*scale_factor, height = 8.27*scale_factor, create.dir = TRUE)
 
 #plot the columns specified above
 plot_list <- list()
@@ -151,12 +152,12 @@ for(col in cols_to_plot){
   ncols <- ceiling(sqrt(length(unique(to_plot$file))))
   col <- gsub("%", "percent", col)
   col <- gsub("\\s*\\([^)]*\\)", "", col)
-  ggsave(paste0(outputs_dir, "/growth_curves/", col, ".pdf"), plot + facet_wrap(vars(file)), width = 4+(1*ncols*scale_factor), height = 1*ncols*scale_factor, create.dir = TRUE)
+  ggsave(paste0(outputs_dir, "/", col, ".pdf"), plot + facet_wrap(vars(file)), width = 4+(1*ncols*scale_factor), height = 1*ncols*scale_factor, create.dir = TRUE)
 }
 
 final_plot <- ggalign::align_plots(!!!plot_list, ncol = 1)
 scale_factor <- 2
-ggsave(paste0(outputs_dir, "/growth_curves/numeric_variables.pdf"), final_plot, width = 11.69*scale_factor, height = 1*length(cols_to_plot)*scale_factor, create.dir = TRUE)
+ggsave(paste0(outputs_dir, "/numeric_variables.pdf"), final_plot, width = 11.69*scale_factor, height = 1*length(cols_to_plot)*scale_factor, create.dir = TRUE)
 
 #estimate average counts per sample
 to_plot <- to_plot %>%  
@@ -185,7 +186,7 @@ plot <- plot %>%
   theme_bw()+
   theme(panel.grid.minor.x = element_blank())
 
-ggsave(paste0(outputs_dir, "/growth_curves/raw_growth_curves.pdf"), plot, width = 11.69, height = 9, scale = 2, create.dir = TRUE)
+ggsave(paste0(outputs_dir, "/raw_growth_curves.pdf"), plot, width = 11.69, height = 9, scale = 2, create.dir = TRUE)
 
 #visualize growth profile of passage 2 parasites per aneuploidy group
 plot_data <- to_plot %>%
@@ -262,7 +263,7 @@ plot_2 <- plot_data %>%
 
 final_plot <- ggalign::align_plots(plot, plot_2, nrow = 1, widths = c(0.2, 0.8))
 final_plot
-ggsave(paste0(outputs_dir, "/growth_curves/growth_curves_aneuploidy.pdf"), final_plot, width = 11.69, height = 2, scale = 2, create.dir = TRUE)
+ggsave(paste0(outputs_dir, "_aneuploidy.pdf"), final_plot, width = 11.69, height = 2, scale = 2, create.dir = TRUE)
 
 #plot doubling time
 doubling_time <- to_plot %>%
@@ -295,11 +296,13 @@ doubling_time <- to_plot %>%
   ) 
 
 doubling_time %>%
-  filter(subclone != "mother clone") %>%
-  ggplot(aes(x = subclone, y = doubling_time_hours, group = sample))+
+  filter(subclone != "mother clone" & passage == 2) %>%
+  arrange(aneu_group, subclone) %>%
+  mutate(subclone = factor(subclone, levels = unique(subclone))) %>%
+  ggplot(aes(x = subclone, y = doubling_time_hours, group = sample, fill = aneu_group))+
   geom_boxplot()+
   geom_jitter()+
-  facet_grid(cols = vars(aneu_group), rows = vars(passage))
+  scale_fill_manual(values = aneu_colors)
 
 
 
