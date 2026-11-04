@@ -4,7 +4,7 @@
 rm(list = ls(all.names = TRUE))
 
 ##load libraries####
-#library(glmGamPoi)
+library(glmGamPoi)
 library(Seurat)
 library(MAST)
 library(tidyverse)
@@ -23,15 +23,20 @@ source("scRNA_analysis/env.R")
 resolutions_to_try <- c(0:10)/10
 chosen_resolution <- 0.4
 pca_dims <- 1:20
+norm_method <- "SCT"
+groups_to_test <- c("pbm_day", "atlas.stages.ident", "cell_cycle_phase")
+qc_vars <- c("percent_mito", "percent_ribo", "nCount_RNA", "nFeature_RNA")
+vars_to_regress <- "nCountRNA"
+
 
 #set paths
-#seuratObj_path <- "../inputs/scRNA/seurat_objects/B12_E4_G3_G6_seurat_unprocessed.rds"
-seuratObj_path <- "../inputs/scRNA/seurat_objects/B12_E4_seurat_unprocessed.rds"
+seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds"
 out_dir <- "../outputs/scRNA/"
 
 #set outputs paths based on input object name
-out_seurat_name <- gsub("unprocessed", "processed", basename(seuratObj_path))
-out_dir <- paste0(out_dir, gsub("_unprocessed.rds", "", basename(seuratObj_path)))
+base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))
+out_seurat_name <- paste0(base_name, "_processed.rds")
+out_dir <- paste0(out_dir, "/", base_name)
 
 ##fix issues with memory limit####
 library(future)
@@ -60,19 +65,27 @@ seuratObj <- lapply(seuratObj, PercentageFeatureSet, features = mito_features , 
 seuratObj <- lapply(seuratObj, PercentageFeatureSet, features = ribo_features , col.name = "percent_ribo")
 
 
-###flag outlier cells and remove them
-seuratObj <- lapply(seuratObj, function(x){
-  x@meta.data <- x@meta.data %>%
-    rownames_to_column("cell_barcode") %>%
-    mutate(is_outlier_mito = percent_mito > quantile(percent_mito, 0.99)) %>%
-    mutate(is_outlier_counts = nCount_RNA > quantile(nCount_RNA, 0.99)) %>%
-    mutate(is_outlier_features = nFeature_RNA > quantile(nFeature_RNA, 0.99)) %>%
-    ungroup() %>%
-    column_to_rownames("cell_barcode")
-  x@meta.data$to_remove <- rowSums(x@meta.data[,grep("is_outlier_", colnames(x@meta.data))]) >= 1
-  x <- subset(x, !to_remove)
-  return(x)
+###flag outlier cells
+seuratObj <- lapply(seuratObj, flag_outlier_cells, qc_vars = qc_vars)
+
+#plot outlier cells
+plot_list <- lapply(seuratObj, function(x){
+  plot <- x@meta.data %>%
+    select(any_of(qc_vars), is_outlier) %>%
+    pivot_longer(cols = -is_outlier, names_to = "feature") %>%
+    ggplot(aes(x = feature, y = value, color = is_outlier))+
+    geom_jitter()+
+    geom_violin(alpha = 0.5, aes(group = feature))+
+    scale_color_manual(values = c("lightgrey", "darkred"))+
+    facet_wrap(vars(feature), scales = "free")+
+    theme(legend.position = "top")
+  
+  plot <- plot + ggtitle(unique(x@meta.data$pbm_day))
+  return(plot)
 })
+
+outliers_plot <- ggalign::align_plots(!!!plot_list, nrow = 1, guides = "lbtr") 
+ggsave(paste0(out_dir, "/outlier_cells.pdf"), plot = outliers_plot, height = 5, width = 20, scale = 1.5)
 
 ###Normalize and scale genes####
 seuratObj <- seuratObj %>%
@@ -90,6 +103,26 @@ seuratObj <- FindVariableFeatures(seuratObj)
 
 ##fix per-library SCT####
 seuratObj <- PrepSCTFindMarkers(seuratObj)
+
+## join layers
+active_assay <- DefaultAssay(seuratObj)
+DefaultAssay(seuratObj) <- "RNA"
+seuratObj <- JoinLayers(seuratObj)
+DefaultAssay(seuratObj) <- active_assay
+
+## inspect cross library differences
+features_to_check <- c("percent_mito", "percent_ribo", "nCount_RNA", "nFeature_RNA")
+plot <- seuratObj@meta.data %>%
+  select(any_of(features_to_check), pbm_day) %>%
+  pivot_longer(cols = -pbm_day, names_to = "feature") %>%
+  group_by(pbm_day, feature) %>%
+  mutate(value = value + rnorm(n(), 0, 1e-5)) %>% #this adds some noise to the values so violins look better
+  ggplot(aes(x = pbm_day, y = value, group = pbm_day, fill = pbm_day))+
+  geom_jitter(size = 0.03)+
+  geom_violin(scale = "width", alpha = 0.5)+
+  labs(x = NULL, y = NULL)+
+  facet_wrap(vars(feature), scales = "free")
+
 
 ##run PCA####
 seuratObj <- RunPCA(seuratObj, verbose = FALSE)

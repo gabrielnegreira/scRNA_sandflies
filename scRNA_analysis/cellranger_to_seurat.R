@@ -8,6 +8,7 @@ gc()
 library(Seurat)
 library(rtracklayer)
 library(tidyverse)
+library(glmGamPoi)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 
 #get required paths
@@ -116,4 +117,4 @@ seuratObj <- meta_from_ref(query_obj = seuratObj,
 seuratObj@misc$colors$atlas.stages.ident <- create_colors(seuratObj$atlas.stages.ident)
 
 #write the object to disk
-saveRDS(seuratObj, "../inputs/scRNA/seurat_objects/seuratObj_unprocessed.rds")
+saveRDS(seuratObj, "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds")
