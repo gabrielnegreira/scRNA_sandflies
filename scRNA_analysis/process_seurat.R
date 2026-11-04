@@ -21,17 +21,17 @@ source("scRNA_analysis/env.R")
 
 ##set parameters####
 resolutions_to_try <- c(0:10)/10
-chosen_resolution <- 0.4
+chosen_resolution <- 0.3
 pca_dims <- 1:20
 norm_method <- "SCT"
 groups_to_test <- c("pbm_day", "atlas.stages.ident", "cell_cycle_phase")
 qc_vars <- c("percent_mito", "percent_ribo", "nCount_RNA", "nFeature_RNA")
-vars_to_regress <- "nCountRNA"
-
+vars_to_regress <- "percent_mito"
+n_variable_features <- 850
 
 #set paths
 seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds"
-out_dir <- "../outputs/scRNA/"
+out_dir <- "../outputs/scRNA/850_var_feat"
 
 #set outputs paths based on input object name
 base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))
@@ -64,23 +64,27 @@ ribo_features <- rownames(filter(seuratObj[[1]][["RNA"]]@meta.data, is_ribosomal
 seuratObj <- lapply(seuratObj, PercentageFeatureSet, features = mito_features , col.name = "percent_mito")
 seuratObj <- lapply(seuratObj, PercentageFeatureSet, features = ribo_features , col.name = "percent_ribo")
 
-
 ###flag outlier cells
 seuratObj <- lapply(seuratObj, flag_outlier_cells, qc_vars = qc_vars)
+seuratObj <- lapply(seuratObj, function(x){
+  x@meta.data <- x@meta.data %>%
+    mutate(to_remove = if_any(starts_with("is_outlier_")))
+  return(x)
+})
 
 #plot outlier cells
 plot_list <- lapply(seuratObj, function(x){
   plot <- x@meta.data %>%
-    select(any_of(qc_vars), is_outlier) %>%
-    pivot_longer(cols = -is_outlier, names_to = "feature") %>%
-    ggplot(aes(x = feature, y = value, color = is_outlier))+
+    select(any_of(qc_vars), to_remove) %>%
+    pivot_longer(cols = -to_remove, names_to = "feature") %>%
+    ggplot(aes(x = feature, y = value, color = to_remove))+
     geom_jitter()+
     geom_violin(alpha = 0.5, aes(group = feature))+
     scale_color_manual(values = c("lightgrey", "darkred"))+
     facet_wrap(vars(feature), scales = "free")+
     theme(legend.position = "top")
   
-  plot <- plot + ggtitle(unique(x@meta.data$pbm_day))
+  plot <- plot + ggtitle(unique(x@meta.data$orig.ident))
   return(plot)
 })
 
@@ -89,9 +93,10 @@ ggsave(paste0(out_dir, "/outlier_cells.pdf"), plot = outliers_plot, height = 5, 
 
 ###Normalize and scale genes####
 seuratObj <- seuratObj %>%
+  lapply(subset, !to_remove) %>%
   lapply(NormalizeData) %>%
   lapply(ScaleData) %>%
-  lapply(SCTransform, return.only.var.genes = FALSE)
+  lapply(SCTransform, return.only.var.genes = FALSE, vars.to.regress = vars_to_regress)
 
 ##join the datasets####
 seuratObj <- merge(seuratObj[[1]], seuratObj[-1])
@@ -99,7 +104,7 @@ seuratObj@misc <- misc_data #restore misc data
 rownames(seuratObj[["RNA"]]@meta.data) <- rownames(seuratObj[["RNA"]]) #restore rownames in metadata (lost after split/merge)
 
 ##find variable features####
-seuratObj <- FindVariableFeatures(seuratObj)
+seuratObj <- FindVariableFeatures(seuratObj, nfeatures = n_variable_features)
 
 ##fix per-library SCT####
 seuratObj <- PrepSCTFindMarkers(seuratObj)
@@ -111,13 +116,13 @@ seuratObj <- JoinLayers(seuratObj)
 DefaultAssay(seuratObj) <- active_assay
 
 ## inspect cross library differences
-features_to_check <- c("percent_mito", "percent_ribo", "nCount_RNA", "nFeature_RNA")
-plot <- seuratObj@meta.data %>%
-  select(any_of(features_to_check), pbm_day) %>%
-  pivot_longer(cols = -pbm_day, names_to = "feature") %>%
-  group_by(pbm_day, feature) %>%
+features_to_check <- qc_vars
+qc_vars_plot <- seuratObj@meta.data %>%
+  select(any_of(qc_vars), orig.ident) %>%
+  pivot_longer(cols = -orig.ident, names_to = "feature") %>%
+  group_by(orig.ident, feature) %>%
   mutate(value = value + rnorm(n(), 0, 1e-5)) %>% #this adds some noise to the values so violins look better
-  ggplot(aes(x = pbm_day, y = value, group = pbm_day, fill = pbm_day))+
+  ggplot(aes(x = orig.ident, y = value, group = orig.ident, fill = orig.ident))+
   geom_jitter(size = 0.03)+
   geom_violin(scale = "width", alpha = 0.5)+
   labs(x = NULL, y = NULL)+
@@ -159,7 +164,7 @@ seuratObj@misc$colors$seurat_clusters <- create_colors(seuratObj$seurat_clusters
 
 #Run UMAP####
 seuratObj <- RunUMAP(seuratObj, dims = pca_dims, min.dist = 0.3, n.neighbors = 30)
-plot <- DimPlot(seuratObj, split.by = "subclone", cols = seuratObj@misc$colors$seurat_clusters)
+plot <- DimPlot(seuratObj, split.by = "orig.ident", cols = seuratObj@misc$colors$seurat_clusters)
 CairoPDF(paste0(out_dir, "/UMAP_clusters.pdf"), height = 4, width = 16)
 show(plot)
 dev.off()
@@ -167,7 +172,7 @@ show(plot)
 
 #Run PHATE####
 seuratObj <- RunPHATE(seuratObj, dims = pca_dims)
-plot <- DimPlot(seuratObj, split.by = "subclone", cols = seuratObj@misc$colors$seurat_clusters)
+plot <- DimPlot(seuratObj, split.by = "orig.ident", cols = seuratObj@misc$colors$seurat_clusters)
 CairoPDF(paste0(out_dir, "/UMAP_clusters.pdf"), height = 4, width = 16)
 show(plot)
 dev.off()
@@ -178,13 +183,13 @@ source(cell_cycle_script)
 
 #visualize the proportion of clusters in each clone####
 plot <- seuratObj@meta.data %>%
-  select(subclone, seurat_clusters)%>%
-  group_by(subclone, seurat_clusters)%>%
+  select(orig.ident, seurat_clusters)%>%
+  group_by(orig.ident, seurat_clusters)%>%
   summarise(ncells = n())%>%
-  group_by(subclone)%>%
+  group_by(orig.ident)%>%
   mutate(percent = ncells/sum(ncells)) %>%
   mutate(percent_text = paste0(round(percent*100, 1), "%"))%>%
-  ggplot(aes(x = subclone, alluvium = seurat_clusters, stratum = seurat_clusters, y = percent, fill = seurat_clusters, label = percent_text))+
+  ggplot(aes(x = orig.ident, alluvium = seurat_clusters, stratum = seurat_clusters, y = percent, fill = seurat_clusters, label = percent_text))+
   geom_alluvium(alpha = 0.8, decreasing = FALSE)+geom_text_repel(stat = "stratum", decreasing = FALSE, direction = "y", nudge_x = 0.1)+
   #geom_col()+geom_text(position = position_stack(vjust = 0.5))+
   labs(fill = "Cluster", x = "Sample", y = "Percentage")+
@@ -197,13 +202,13 @@ show(plot)
 
 #visualize the proportion of stages in each clone####
 plot <- seuratObj@meta.data %>%
-  select(subclone, atlas.stages.ident)%>%
-  group_by(subclone, atlas.stages.ident)%>%
+  select(orig.ident, atlas.stages.ident)%>%
+  group_by(orig.ident, atlas.stages.ident)%>%
   summarise(ncells = n())%>%
-  group_by(subclone)%>%
+  group_by(orig.ident)%>%
   mutate(percent = ncells/sum(ncells)) %>%
   mutate(percent_text = paste0(round(percent*100, 1), "%"))%>%
-  ggplot(aes(x = subclone, alluvium = atlas.stages.ident, stratum = atlas.stages.ident, y = percent, fill = atlas.stages.ident, label = percent_text))+
+  ggplot(aes(x = orig.ident, alluvium = atlas.stages.ident, stratum = atlas.stages.ident, y = percent, fill = atlas.stages.ident, label = percent_text))+
   geom_alluvium(alpha = 0.8, decreasing = FALSE)+geom_text_repel(stat = "stratum", decreasing = FALSE, direction = "y", nudge_x = 0.1)+
   #geom_col()+geom_text(position = position_stack(vjust = 0.5))+
   labs(fill = "Cluster", x = "Sample", y = "Percentage")+
@@ -214,115 +219,20 @@ show(plot)
 dev.off()
 show(plot)
 
-#visualize the proportion of aneuploid cells in each cluster
-plot <- seuratObj@meta.data %>%
-  group_by(subclone, seurat_clusters, aneu_group) %>%
-  summarise(ncells = n()) %>%
-  group_by(subclone, seurat_clusters) %>%
-  mutate(prop = ncells/sum(ncells)) %>%
-  ggplot(aes(x = seurat_clusters, y = ncells, fill = aneu_group))+
-  geom_col()+
-  facet_wrap(vars(subclone), scales = "free")+
-  scale_fill_manual(values = seuratObj@misc$colors$aneu_group)
-CairoPDF(paste0(out_dir, "/aneuploid_proportions.pdf"), height = 6, width = 8)
-show(plot)
-dev.off()
-show(plot)
-
 #visualize the proportion of cells in each cell cycle phase in each cluster
 plot <- seuratObj@meta.data %>%
-  group_by(subclone, seurat_clusters, aneu_group, cell_cycle_phase) %>%
+  group_by(orig.ident, seurat_clusters, cell_cycle_phase) %>%
   summarise(ncells = n()) %>%
-  group_by(subclone, seurat_clusters, aneu_group) %>%
+  group_by(orig.ident, seurat_clusters) %>%
   mutate(prop = ncells/sum(ncells)) %>%
   ggplot(aes(x = seurat_clusters, y = ncells, fill = cell_cycle_phase))+
   geom_col() +
-  facet_wrap(vars(subclone), scales = "free")+
+  facet_wrap(vars(orig.ident), scales = "free")+
   scale_fill_manual(values = seuratObj@misc$colors$cell_cycle_phase)
 CairoPDF(paste0(out_dir, "/cell_cycle_proportions.pdf"), height = 6, width = 8)
 show(plot)
 dev.off()
 show(plot)
-
-#enrichment analysis samples in each cluster####
-##create a key/value pair setting the groupings for enrichment analysis
-enrich_groups <- c(seurat_clusters = "subclone",
-                   seurat_clusters = "aneu_group",
-                   subclone = "seurat_clusters",
-                   aneu_group = "seurat_clusters")
-
-plot_list <- list()
-enrichment_results_list <- list()
-for(i in seq_along(enrich_groups)){
-  group_a <- names(enrich_groups[i])
-  group_b <- unname(enrich_groups[i])
-  comparison <- paste(group_a, "Vs", group_b)
-  
-  ref <- seuratObj@meta.data[[group_a]]
-  enrichment_results <- list()
-  
-  for(group_b_level in unique(seuratObj@meta.data[[group_b]])){
-    set <- seuratObj@meta.data %>%
-      filter(!!sym(group_b) == group_b_level) %>%
-      pull(group_a)
-    enrichment <- GO_enrich(set_terms = set, ref_terms = ref, test_type = "both") %>%
-      dplyr::rename(!!sym(group_a) := term) %>%
-      dplyr::mutate(!!sym(group_b) := group_b_level)
-    
-    enrichment_results[[group_b_level]] <- enrichment
-  }
-  
-  enrichment_results <- bind_rows(enrichment_results)
-  enrichment_results_list[[comparison]] <- enrichment_results
-  
-  #make the plot
-  plot_list[[comparison]] <- enrichment_results %>%
-    ggplot(aes(x = log2enrichment, y = .data[[group_a]], color = pvalue < 0.05))+
-    geom_segment(aes(x = 0, xend = log2enrichment))+
-    geom_point(aes(size = -log10(pvalue)))+
-    scale_color_manual(breaks = c("TRUE", "FALSE"), values = c(`TRUE` = "black", `FALSE` = "grey"), limits = c("TRUE", "FALSE"), drop = FALSE)+
-    #guides(color = guide_legend(override.aes = list(linetype = 1, linewidth = 0.6, shape = 16)))+ #this forces a line and a dot to be shown in the legend even if there are no `FALSE` values in the plot
-    facet_wrap(vars(.data[[group_b]]), ncol = 1)+
-    labs(x = "Log2 Enrichment", y = group_a)+
-    ggtitle(comparison)
-}
-
-plot <- ggalign::align_plots(!!!plot_list, nrow = 2, heights = c(0.3, 0.7), guides = "r") + layout_tags("A")
-ggsave(paste0(out_dir, "/subclone_enrichment_by_cluster.pdf"), plot = plot, height = 20, width = 10)
-
-#now do enrichment analysis per clone
-enrichment_results <- list()
-for(Subclone in unique(seuratObj@meta.data$subclone)){
-  ref <- seuratObj@meta.data %>%
-    filter(subclone == Subclone) %>%
-    pull(aneu_group)
-  
-  enrichment_results[[Subclone]] <- list()
-  for(Cluster in unique(seuratObj@meta.data$seurat_clusters)){
-    set <- seuratObj@meta.data %>%
-      filter(subclone == Subclone & seurat_clusters == Cluster) %>%
-      pull(aneu_group)
-    enrichment <- GO_enrich(set, ref, test_type = "both")
-    enrichment$cluster <- Cluster
-    enrichment$subclone <- Subclone
-    enrichment_results[[Subclone]][[Cluster]] <- enrichment
-  }
-}
-enrichment_results <- lapply(enrichment_results, bind_rows)
-enrichment_results <- bind_rows(enrichment_results)
-
-#plot it 
-x_limits <- ceiling(max(abs(enrichment_results$log2enrichment)))
-x_limits <- c(-x_limits, x_limits)
-plot <- enrichment_results %>%
-  ggplot(aes(x = log2enrichment, y = cluster, color = pvalue < 0.5))+
-  geom_point(aes(size = -log10(pvalue)))+
-  geom_segment(aes(x = 0, xend = log2enrichment))+
-  scale_x_continuous(limits = x_limits)+
-  scale_color_manual(breaks = c("TRUE", "FALSE"), values = c(`TRUE` = "black", `FALSE` = "grey"), limits = c("TRUE", "FALSE"), drop = FALSE)+
-  facet_grid(cols = vars(subclone), rows = vars(term))
-
-ggsave(filename = paste0(out_dir, "/aneuploidy_enrichment_per_cluster.pdf"), plot = plot, height = 10, width = 16)
 
 #check marker genes####
 marker_genes <- FindAllMarkers(seuratObj, logfc.threshold = log2(2), test.use = "MAST", only.pos = T, min.pct = 0.1)
@@ -360,7 +270,7 @@ gene_names <- seuratObj@assays$RNA@meta.data %>%
 plot <- DoHeatmap_plus(seuratObj, 
                        features = genes_to_plot,
                        feature_labels = gene_names,
-                       group.by = c("seurat_clusters", "aneu_group", "subclone"),
+                       group.by = c("seurat_clusters", "orig.ident"),
                        group.colors = seuratObj@misc$colors
                        )
 
