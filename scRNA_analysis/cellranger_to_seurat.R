@@ -99,22 +99,5 @@ seuratObj[["RNA"]]@meta.data <- data.frame(cellranger_id = Read10X(paste0(dirs[[
 
 rm(list = c("dirs", "dir", "library", "libraries", "sample_name", "genome_annotation"))
 
-#Map to Lmj atlas####
-Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>%
-  select(seurat_id, Lm) %>%
-  deframe()
-seuratObj <- meta_from_ref(query_obj = seuratObj, 
-                           ref_obj = readRDS(Lmj_ref_obj),
-                           dims = 1:30,
-                           subsample_ref = 5000,
-                           metadata_to_extract = "stages.ident",
-                           prefix = "atlas.",
-                           normalization_method = "SCT",
-                           #ignore_values = list(stages.ident = "amastigotes"),
-                           id_conversion = Ld_to_Lmj)
-
-#create a color vector for the stages
-seuratObj@misc$colors$atlas.stages.ident <- create_colors(seuratObj$atlas.stages.ident)
-
 #write the object to disk
 saveRDS(seuratObj, "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds")
