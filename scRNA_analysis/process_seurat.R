@@ -18,19 +18,20 @@ source("git_modules/GO_tools/GO_tools.R")
 
 #get paths to external scripts and sources
 source("scRNA_analysis/env.R")
-Lmj_to_Ld <- Lmj_to_Ld
+#variables set in `env.R`. Assignemnt here is just for code readability
+Lmj_to_Ld <- Lmj_to_Ld 
 Lmj_ref_obj <- Lmj_ref_obj
 
 #set paths
 seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds"
-out_dir <- "../outputs/scRNA/scran_normalization_with_sct_no_integration"
+out_dir <- "../outputs/scRNA/standard_normalization_no_sct_no_integration"
 
 ##set parameters####
 resolutions_to_try <- c(0:10)/10
 chosen_resolution <- 0.3
-pca_dims <- 1:20
-norm_method <- "scran" #either scran or LogNormalize
-use_sct <- TRUE #TRUE or FALSE
+pca_dims <- 1:10
+norm_method <- "LogNormalize" #either scran or LogNormalize
+use_sct <- FALSE #TRUE or FALSE
 integrate_layers <- FALSE #TRUE or FALSE
 categories_to_visualize <- c("pbm_day", "cell_cycle_phase", "seurat_clusters", "atlas.stages.ident")
 qc_vars <- c("percent_mito", "nCount_RNA")
