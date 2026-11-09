@@ -2,8 +2,9 @@
 
 #prepare the environment####
 rm(list = ls(all.names = TRUE))
+gc()
 
-##load libraries####
+#load libraries####
 library(glmGamPoi)
 library(Seurat)
 library(MAST)
@@ -13,8 +14,15 @@ library(Cairo)
 library(ggalluvial)
 library(ggrepel)
 library(ggalign)
+library(conflicted)
 source("git_modules/scRNA_tools/scRNA_functions.R")
-source("git_modules/GO_tools/GO_tools.R")
+
+conflict_prefer("rename", "dplyr")
+conflict_prefer("filter", "dplyr")
+conflict_prefer("vars", "dplyr")
+conflict_prefer("as.factor", "base")
+conflict_prefer("align_plots", "ggalign")
+
 
 #get paths to external scripts and sources
 source("scRNA_analysis/env.R")
@@ -22,18 +30,24 @@ source("scRNA_analysis/env.R")
 Lmj_to_Ld <- Lmj_to_Ld 
 Lmj_ref_obj <- Lmj_ref_obj
 
+#get color pallets
+source("color_pallets.R")
+#just for readability:
+morphotype_colors <- morphotype_colors
+cell_cycle_colors <- cell_cycle_colors
+
 #set paths
 seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds"
-out_dir <- "../outputs/scRNA/standard_normalization_no_sct_no_integration"
+out_dir <- "../outputs/scRNA/scran_normalization_no_sct_no_integration"
 
 ##set parameters####
-resolutions_to_try <- c(0:10)/10
+resolutions_to_try <- seq(0, 10, by = 0.5)/10
 chosen_resolution <- 0.3
 pca_dims <- 1:10
-norm_method <- "LogNormalize" #either scran or LogNormalize
+norm_method <- "scran" #either scran or LogNormalize
 use_sct <- FALSE #TRUE or FALSE
 integrate_layers <- FALSE #TRUE or FALSE
-categories_to_visualize <- c("pbm_day", "cell_cycle_phase", "seurat_clusters", "atlas.stages.ident")
+categories_to_visualize <- c("pbm_day", "cell_cycle_phase", "seurat_clusters", "atlas.stages.ident", "assigned_morphotypes")
 qc_vars <- c("percent_mito", "nCount_RNA")
 vars_to_regress <- c("percent_mito")
 vars_to_regress <- NULL
@@ -96,7 +110,7 @@ if(use_sct){
   seuratObj <- ScaleData(seuratObj) 
 }
 
-##run PCA####a
+##run PCA####
 seuratObj <- RunPCA(seuratObj, verbose = FALSE)
 
 ### Integrate layers ####
@@ -127,9 +141,10 @@ seuratObj <- FindVariableFeatures(seuratObj, nfeatures =  n_variable_features) #
 
 ##define cell cycle####
 source(cell_cycle_script)
+seuratObj@misc[["colors"]][["cell_cycle_phase"]] <- cell_cycle_colors
 
 ##define morphotypes based on cell atlas####
-if("atlas.stages.ident" %in% categories_to_visualize){
+if("atlas.stages.ident" %in% categories_to_visualize | "assigned_morphotypes" %in% categories_to_visualize){
   Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
     select(seurat_id, Lm) %>%
     deframe()
@@ -145,9 +160,37 @@ if("atlas.stages.ident" %in% categories_to_visualize){
     id_conversion = Ld_to_Lmj
   )
   seuratObj$atlas.stages.ident <- factor(seuratObj$atlas.stages.ident, 
-                                         levels = c("procyclics", "procyclics-to-nectomonads", "nectomonads", "leptomonads", "haptomonads", "early-metacyclics", "late-metacyclics", "amastigotes"))
-  seuratObj@misc[["colors"]]$atlas.stages.ident <- create_colors(seuratObj$atlas.stages.ident)
+                                         levels = names(morphotype_colors))
+  seuratObj@misc[["colors"]]$atlas.stages.ident <- morphotype_colors
+  
+  #plot mapping scores
+  #temp: plot mapping scores
+  plot <- seuratObj@meta.data %>%
+    ggplot(aes(x = atlas.stages.ident, fill = atlas.stages.ident, y = atlas.stages.ident.score))+
+    geom_violin(scale = "width")+
+    geom_jitter(size = 0.001) +
+    scale_fill_manual(values = seuratObj@misc$colors$atlas.stages.ident)+
+    facet_wrap(vars(orig.ident), nrow = 1)+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  ggsave(paste0(out_dir, "/atlas mapping scores.pdf"), plot, scale = 1.5, width = 20, height = 5)
+  
+  #assign clusters to the most frequent morphotype from atlas
+  seuratObj@meta.data <- seuratObj@meta.data %>%
+    rownames_to_column("rowname") %>%
+    left_join(
+      seuratObj@meta.data %>%
+        group_by(seurat_clusters, atlas.stages.ident) %>%
+        summarise(assigned_n_cells = n()) %>%
+        rename(assigned_morphotype = atlas.stages.ident) %>%
+        group_by(seurat_clusters) %>%
+        filter(assigned_n_cells == max(assigned_n_cells)) %>%
+        select(seurat_clusters, assigned_morphotype)
+      ,by = "seurat_clusters"
+    ) %>%
+    column_to_rownames("rowname")
 }
+
 
 #Make plots####
 ##create color pallets for each category####
@@ -323,7 +366,7 @@ for(Category in categories_to_visualize){
 ###visualize the proportion of cells in each category####
 for(Category in categories_to_visualize){
   plot <- seuratObj@meta.data %>%
-    rename(ident = any_of(Category)) %>%
+    rename(ident = all_of(Category)) %>%
     select(orig.ident, ident)%>%
     group_by(orig.ident, ident)%>%
     summarise(ncells = n())%>%
@@ -370,6 +413,9 @@ for(i in seq_along(categories_to_visualize)){
   }
 }
 
+#save the seurat object to disk
+saveRDS(seuratObj, file = paste0(out_dir, "/", out_seurat_name))
+
 #check marker genes####
 if(DefaultAssay(seuratObj) == "SCT"){
   seuratObj <- PrepSCTFindMarkers(seuratObj)
@@ -414,6 +460,3 @@ for(Category in categories_to_visualize){
   
   ggsave(plot = plot, filename = paste0(out_dir, "/", Category, "_markers_Heatmap.pdf"), height = 20, width = 30)
 }
-
-#save the seurat object to disk
-saveRDS(seuratObj, file = paste0(dirname(seuratObj_path), "/", out_seurat_name))

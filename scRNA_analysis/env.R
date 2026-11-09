@@ -14,6 +14,7 @@ ref_GO_annotations <- "../inputs/reference_genome/LdCL_GO_terms_updated.tsv"
 #cross-species mapping
 Lmj_to_Ld <- "../inputs/reference_genome/Lmj_to_LdCL_one_to_one.xlsx"
 Tb_to_Ld <- "../inputs/reference_genome/Tb_to_LdCL_TriTrypDB.tsv"
+Ltr_to_Ld <- "../inputs/reference_genome/LTR_to_LdCL.txt"
 
 #data from other species
 TrypTag_data <- "../inputs/external_data/TrypTag_localizations.tsv"
