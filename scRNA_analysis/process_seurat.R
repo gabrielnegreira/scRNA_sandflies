@@ -38,20 +38,21 @@ cell_cycle_colors <- cell_cycle_colors
 
 #set paths
 seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds"
-out_dir <- "../outputs/scRNA/scran_normalization_no_sct_no_integration"
+out_dir <- "../outputs/scRNA/scran_normalization_no_sct_no_integration_850_var_features"
 
 ##set parameters####
 resolutions_to_try <- seq(0, 10, by = 0.5)/10
-chosen_resolution <- 0.3
-pca_dims <- 1:10
+chosen_resolution <- 0.5
+pca_dims <- 1:13
 norm_method <- "scran" #either scran or LogNormalize
 use_sct <- FALSE #TRUE or FALSE
 integrate_layers <- FALSE #TRUE or FALSE
-categories_to_visualize <- c("pbm_day", "cell_cycle_phase", "seurat_clusters", "atlas.stages.ident", "assigned_morphotypes")
+categories_to_visualize <- c("pbm_day", "cell_cycle_phase", "seurat_clusters", "atlas.stages.ident", "assigned_morphotype")
 qc_vars <- c("percent_mito", "nCount_RNA")
 vars_to_regress <- c("percent_mito")
 vars_to_regress <- NULL
-n_variable_features <- 2000
+n_variable_features <- 850
+find_markers <- FALSE
 
 #set outputs paths based on input object name####
 base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))
@@ -189,6 +190,9 @@ if("atlas.stages.ident" %in% categories_to_visualize | "assigned_morphotypes" %i
       ,by = "seurat_clusters"
     ) %>%
     column_to_rownames("rowname")
+  
+  #copy the color vector from atlas.stages.ident
+  seuratObj@misc$colors$assigned_morphotype <- seuratObj@misc$colors$atlas.stages.ident
 }
 
 
@@ -417,46 +421,48 @@ for(i in seq_along(categories_to_visualize)){
 saveRDS(seuratObj, file = paste0(out_dir, "/", out_seurat_name))
 
 #check marker genes####
-if(DefaultAssay(seuratObj) == "SCT"){
-  seuratObj <- PrepSCTFindMarkers(seuratObj)
-}
-for(Category in categories_to_visualize){
-  marker_genes <- FindAllMarkers(seuratObj, group.by = Category, logfc.threshold = log2(2), test.use = "MAST", only.pos = T, min.pct = 0.1)
-  marker_genes <- marker_genes %>%
-    filter(p_val_adj < 0.05) %>%
-    group_by(cluster) %>%
-    arrange(desc(avg_log2FC), .by_group = TRUE) %>%
-    as.data.frame() %>%
-    mutate(transcript_id = gene) %>%
-    dplyr::rename(gene_id = gene) %>%
-    mutate(gene_id = gsub("LdCL-", "LdCL_", gene_id)) %>%
-    mutate(gene_id = gsub("LdBPK-", "LdBPK_", gene_id)) %>%
-    mutate(gene_id = gsub("-t42-1", "", gene_id)) %>%
-    mutate(trypDB_link = ifelse(grepl("LdCL", gene_id), paste0("https://tritrypdb.org/tritrypdb/app/record/gene/", gene_id), NA)) %>%
-    left_join(seuratObj[["RNA"]]@meta.data %>% select(-transcript_id) %>% rownames_to_column("transcript_id"), by = "transcript_id", keep =  FALSE)
-  
-  #save excel file with marker_genes
-  xlsx::write.xlsx(marker_genes, paste0(out_dir, "/", Category, "_markers.xlsx"))
-  
-  genes_to_plot <- marker_genes %>%
-    group_by(cluster) %>%
-    slice_max(order_by = avg_log2FC, n = 20) %>%
-    pull("transcript_id") %>%
-    unique()
-  
-  #plot heatmap####
-  gene_names <- seuratObj@assays$RNA@meta.data %>%
-    rownames_to_column("rowname") %>%
-    select(rowname, cellranger_name) %>%
-    deframe()
-  
-  plot <- DoHeatmap_plus(seuratObj, 
-                         features = genes_to_plot,
-                         feature_labels = gene_names,
-                         group.by = c(Category, categories_to_visualize[categories_to_visualize != Category]),
-                         group.colors = seuratObj@misc[["colors"]]
-  )
-  
-  
-  ggsave(plot = plot, filename = paste0(out_dir, "/", Category, "_markers_Heatmap.pdf"), height = 20, width = 30)
+if(find_markers){
+  if(DefaultAssay(seuratObj) == "SCT"){
+    seuratObj <- PrepSCTFindMarkers(seuratObj)
+  }
+  for(Category in categories_to_visualize){
+    marker_genes <- FindAllMarkers(seuratObj, group.by = Category, logfc.threshold = log2(2), test.use = "MAST", only.pos = T, min.pct = 0.1)
+    marker_genes <- marker_genes %>%
+      filter(p_val_adj < 0.05) %>%
+      group_by(cluster) %>%
+      arrange(desc(avg_log2FC), .by_group = TRUE) %>%
+      as.data.frame() %>%
+      mutate(transcript_id = gene) %>%
+      dplyr::rename(gene_id = gene) %>%
+      mutate(gene_id = gsub("LdCL-", "LdCL_", gene_id)) %>%
+      mutate(gene_id = gsub("LdBPK-", "LdBPK_", gene_id)) %>%
+      mutate(gene_id = gsub("-t42-1", "", gene_id)) %>%
+      mutate(trypDB_link = ifelse(grepl("LdCL", gene_id), paste0("https://tritrypdb.org/tritrypdb/app/record/gene/", gene_id), NA)) %>%
+      left_join(seuratObj[["RNA"]]@meta.data %>% select(-transcript_id) %>% rownames_to_column("transcript_id"), by = "transcript_id", keep =  FALSE)
+    
+    #save excel file with marker_genes
+    xlsx::write.xlsx(marker_genes, paste0(out_dir, "/", Category, "_markers.xlsx"))
+    
+    genes_to_plot <- marker_genes %>%
+      group_by(cluster) %>%
+      slice_max(order_by = avg_log2FC, n = 20) %>%
+      pull("transcript_id") %>%
+      unique()
+    
+    #plot heatmap####
+    gene_names <- seuratObj@assays$RNA@meta.data %>%
+      rownames_to_column("rowname") %>%
+      select(rowname, cellranger_name) %>%
+      deframe()
+    
+    plot <- DoHeatmap_plus(seuratObj, 
+                           features = genes_to_plot,
+                           feature_labels = gene_names,
+                           group.by = c(Category, categories_to_visualize[categories_to_visualize != Category]),
+                           group.colors = seuratObj@misc[["colors"]]
+    )
+    
+    
+    ggsave(plot = plot, filename = paste0(out_dir, "/", Category, "_markers_Heatmap.pdf"), height = 20, width = 30)
+  }
 }

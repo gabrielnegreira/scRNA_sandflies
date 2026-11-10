@@ -60,3 +60,5 @@ genes_of_interest[["metacyclic-markers"]] <-  seuratObj[["RNA"]]@meta.data %>%
 VlnPlot(seuratObj, features = genes_of_interest$meiotic_genes_Ld, group.by = "seurat_clusters", assay = "RNA")
 
 VlnPlot(seuratObj, features = genes_of_interest$`metacyclic-markers`, group.by = "seurat_clusters", assay = "RNA", alpha = 0.1)
+
+seuratObj[["RNA"]]@meta.data[genes_of_interest$meiotic_genes_Ld,]$cellranger_name
