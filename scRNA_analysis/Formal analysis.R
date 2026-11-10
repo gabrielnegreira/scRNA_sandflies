@@ -39,8 +39,8 @@ out_dir <- "../inputs/scRNA/seurat_objects/"
 qc_vars <- c("percent_mito", "nCount_RNA") #chose qc features to remove outlier cells
 n_variable_features <- 850 #choose how many variable features to use (here, 10% of total genes)
 pca_dims <- 1:13 #choose PCA dimensions to use for downstream analysis
-cluster_resolution <- 0.5 #choose a resolution for cell clustering
-subcluster_resolution <- 0.5 #choose a resolution for spiting clusters into subclusters
+cluster_resolution <- 0.3 #choose a resolution for cell clustering
+subcluster_resolution <- 0.25 #choose a resolution for spiting clusters into subclusters
 
 #set outputs paths based on input object name####
 base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))

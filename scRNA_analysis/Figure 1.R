@@ -120,7 +120,7 @@ umaps <- lapply(umaps, function(x){
 
 #now build the figure panel
 plot_list <- list()
-plot_list[["A"]] <- ggalign::align_plots(umaps[[1]], umaps[[2]], ncol = 1) + layout_tags(NULL)
+plot_list[["A"]] <- ggalign::align_plots(umaps[[1]], free_lab(umaps[[2]]), ncol = 1) + layout_tags(NULL)
 plot_list[["B"]] <- cluster_mapping_plot
 plot_list[["C"]] <- annotation_flow_plot
 plot_list[["D"]] <- umaps[[3]]
@@ -130,7 +130,7 @@ top <- align_plots(plot_list[["A"]], right, nrow = 1)
 bottom <- align_plots(plot_list[["D"]], plot_list[["E"]], nrow = 1)
 
 final_plot <- align_plots(top, bottom, ncol = 1, heights = c(0.7, 0.3)) + layout_tags("A")
-final_plot
+#final_plot
 
 #save the figure
 dir.create("../Figures")
