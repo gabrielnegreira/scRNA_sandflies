@@ -29,7 +29,7 @@ seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_proce
 out_dir <- "../outputs/scRNA/Heatmaps"
 
 ##set parameters####
-categories_to_group <- c("seurat_clusters", "assigned_morphotype_final")
+categories_to_group <- c("seurat_clusters", "atlas.stages.ident", "assigned_morphotype_final")
 
 #set outputs paths based on input object name####
 base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))
@@ -45,6 +45,15 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 #actual analysis####
 ##read the seurat object####
 seuratObj <- readRDS(file = seuratObj_path)
+
+#temporary: set cluster 9 to `gamete-like`
+seuratObj@meta.data <- seuratObj@meta.data %>%
+  mutate(assigned_morphotype_final = ifelse(seurat_clusters == "9", "gamete-like", assigned_morphotype_final))
+
+#run SCT on it
+seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
+seuratObj <- SCTransform(seuratObj, return.only.var.genes = FALSE)
+seuratObj <- PrepSCTFindMarkers(seuratObj)
 
 #check marker genes####
 for(Category in categories_to_group){
