@@ -13,7 +13,7 @@ morphotype_colors <-  c(
 )
 
 #replace it by more diverse, color-blind friendly colors
-morphotype_colors <- create_colors(names(morphotype_colors), palette = "colorblind friendly")
+morphotype_colors <- create_colors(c(names(morphotype_colors), "gamete-like"), palette = "colorblind friendly")
 
 #color palette for the cell cycle phases (from T. brucei scRNA paper)
 cell_cycle_colors <- c(

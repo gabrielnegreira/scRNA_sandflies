@@ -45,6 +45,7 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 #actual analysis####
 ##read the seurat object####
 seuratObj <- readRDS(file = seuratObj_path)
+seuratObj@misc$colors$assigned_morphotype_final <- morphotype_colors
 
 #temporary: set cluster 9 to `gamete-like`
 seuratObj@meta.data <- seuratObj@meta.data %>%
