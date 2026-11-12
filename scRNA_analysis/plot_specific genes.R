@@ -11,7 +11,7 @@ source("scRNA_analysis/env.R")
 source("color_pallets.R")
 
 #get the seurat object
-seuratObj <- readRDS("../outputs/scRNA/scran_normalization_no_sct_no_integration/seuratObj_all_timepoints_processed.rds")
+seuratObj <- readRDS("../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_processed.rds")
 #temporary: update colors
 seuratObj@misc$colors$atlas.stages.ident <- morphotype_colors
 

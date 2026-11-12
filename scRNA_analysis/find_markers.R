@@ -49,7 +49,7 @@ seuratObj@misc$colors$assigned_morphotype_final <- morphotype_colors
 
 #temporary: set cluster 9 to `gamete-like`
 seuratObj@meta.data <- seuratObj@meta.data %>%
-  mutate(assigned_morphotype_final = ifelse(seurat_clusters == "9", "gamete-like", assigned_morphotype_final))
+  mutate(assigned_morphotype_final = ifelse(seurat_clusters == "9", "gamete-like", as.character(assigned_morphotype_final)))
 
 #run SCT on it
 seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
