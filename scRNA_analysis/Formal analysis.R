@@ -130,10 +130,12 @@ seuratObj <- meta_from_ref(
 )
 
 #set factor levels
+morpho_levels <- names(morphotype_colors)
+morpho_levels <- morpho_levels[morpho_levels %in% unique(seuratObj@meta.data$atlas.stages.ident)]
 seuratObj$atlas.stages.ident <- factor(seuratObj$atlas.stages.ident, 
                                          levels = names(morphotype_colors))
 #set color scale for it
-seuratObj@misc$colors$atlas.stages.ident <- morphotype_colors
+seuratObj@misc$colors$atlas.stages.ident <- morphotype_colors[morpho_levels]
 
 ###assign morphotypes for each cluster####
 ####get a table with the most frequent morphotype for each cluster
@@ -194,10 +196,11 @@ seuratObj@meta.data <- seuratObj@meta.data %>%
       select(subcluster, assigned_morphotype_final) 
     , by = "subcluster"
   ) %>%
+  mutate(assigned_morphotype_final = factor(assigned_morphotype_final, levels = names(morphotype_colors))) %>%
   column_to_rownames("rowname")
 
 ####set colors for new assigned morphotypes
-seuratObj@misc$colors$assigned_morphotype_final <- seuratObj@misc$colors$atlas.stages.ident
+seuratObj@misc$colors$assigned_morphotype_final <- morphotype_colors
 
 #save the seurat object to disk
 saveRDS(seuratObj, file = paste0(out_dir, "/", out_seurat_name))

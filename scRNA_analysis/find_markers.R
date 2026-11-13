@@ -52,13 +52,13 @@ seuratObj@meta.data <- seuratObj@meta.data %>%
   mutate(assigned_morphotype_final = ifelse(seurat_clusters == "9", "gamete-like", as.character(assigned_morphotype_final)))
 
 #run SCT on it
-seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
-seuratObj <- SCTransform(seuratObj, return.only.var.genes = FALSE)
-seuratObj <- PrepSCTFindMarkers(seuratObj)
+#seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
+#seuratObj <- SCTransform(seuratObj, return.only.var.genes = FALSE)
+#seuratObj <- PrepSCTFindMarkers(seuratObj)
 
 #check marker genes####
 for(Category in categories_to_group){
-  marker_genes <- FindAllMarkers(seuratObj, group.by = Category, logfc.threshold = log2(2), test.use = "MAST", only.pos = T, min.pct = 0.1)
+  marker_genes <- FindAllMarkers(seuratObj, group.by = Category, logfc.threshold = log2(1.5), test.use = "MAST", only.pos = T, min.pct = 0.1)
   marker_genes <- marker_genes %>%
     filter(p_val_adj < 0.05) %>%
     group_by(cluster) %>%
@@ -97,3 +97,6 @@ for(Category in categories_to_group){
   
   ggsave(plot = plot, filename = paste0(out_dir, "/", Category, "_markers_Heatmap.pdf"), height = 20, width = 30)
 }
+
+
+

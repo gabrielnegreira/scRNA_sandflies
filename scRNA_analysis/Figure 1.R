@@ -186,7 +186,6 @@ panel_list[["S1"]] <- umaps[[2]]
 panel_list[["S2"]] <- annotation_flow_plot
 
 #now build the main figure panel
-
 panel_list[["A"]] <- umaps[[1]]
 panel_list[["B"]] <- umap_per_day
 panel_list[["C"]] <- cluster_mapping_plot

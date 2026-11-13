@@ -27,7 +27,7 @@ library(clusterExperiment)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 
 #set paths
-seuratObj_path <- "../inputs/scRNA/seurat_objects/B12_E4_seurat_processed.rds"
+seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_processed.rds"
 
 #inputs####
 seuratObj <- readRDS(seuratObj_path)
@@ -42,13 +42,13 @@ lineages_to_test <- NULL
 
 #set values
 seed_to_use <- 3778473
-traj_reduction <- "phate"
-vis_reduction <- "phate"
-dims_to_use <- 1:2
-cluster_variable <- "atlas.stages.ident"
-conditions_col <- "aneu_group"
-start_cluster <- "leptomonads"
-lineages_to_test <- c(2, 3)
+traj_reduction <- "pca"
+vis_reduction <- "pca"
+dims_to_use <- 1:20
+cluster_variable <- "seurat_clusters"
+conditions_col <- "assigned_morphotype_final"
+start_cluster <- "8"
+lineages_to_test <- c(1, 2)
 #end_cluster <- "early_g1"
 #end_cluster <- "g2_m"
 #create a subdirectory where the trajectory results will be stored
