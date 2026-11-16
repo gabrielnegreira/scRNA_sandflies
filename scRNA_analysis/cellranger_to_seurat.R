@@ -24,8 +24,8 @@ libraries <- c(
   )
 
 ## set paths####
-cellranger_out_dir <- "../inputs/scRNA/cellranger_outputs/"
-seurat_out_dir <- "../inputs/scRNA/seurat_objects/"
+cellranger_out_dir <- "../inputs/scRNA/cellranger_outputs/sandfly_data/"
+seurat_out_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_unprocessed.rds"
 
 ##fix issues with memory limit####
 library(future)
@@ -100,4 +100,5 @@ seuratObj[["RNA"]]@meta.data <- data.frame(cellranger_id = Read10X(paste0(dirs[[
 rm(list = c("dirs", "dir", "library", "libraries", "sample_name", "genome_annotation"))
 
 #write the object to disk
-saveRDS(seuratObj, "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds")
+dir.create(dirname(seurat_out_path), showWarnings = FALSE)
+saveRDS(seuratObj, seurat_out_path)

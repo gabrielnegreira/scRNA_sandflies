@@ -23,7 +23,10 @@ conflict_prefer("unname", "base")
 conflict_prefer("crossing", "tidyr")
 
 #get the seurat object
-seuratObj <- readRDS("../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_processed.rds")
+seuratObj <- readRDS("../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds")
+#get cluster markers
+cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
+  mutate(feature_id = gsub("_", "-", cellranger_id))
 
 #temporary: test different cluster resolutions
 #seuratObj$seurat_clusters <- seuratObj$RNA_snn_res.0.5
@@ -84,6 +87,7 @@ cluster_mapping_plot <- seuratObj@meta.data %>%
   summarise(n_cells = n()) %>%
   ggplot(aes(x = seurat_clusters, y = n_cells, fill = assigned_morphotype_final))+
   geom_col()+
+  guides(fill = "none")+
   scale_fill_manual(values = seuratObj@misc$colors$atlas.stages.ident, name = "Morphotype")
 
 #plot umap with final assigned morphotypes
@@ -155,6 +159,24 @@ annotations_per_day_plot <- seuratObj@meta.data %>%
   scale_fill_manual(values = seuratObj@misc$colors$assigned_morphotype_final)+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+#plot cluster marker genes
+features_to_plot <- cluster_markers %>%
+  group_by(cluster) %>%
+  slice_max(order_by = avg_log2FC, n = 20) %>%
+  pull(feature_id)
+
+feature_labels <- cluster_markers %>%
+  filter(feature_id %in% features_to_plot) %>%
+  select(feature_id, cellranger_name) %>%
+  deframe()
+
+cluster_markers_plot <- DoHeatmap_plus(
+  seuratObj = seuratObj,
+  features = features_to_plot,
+  group.by = "seurat_clusters",
+  group.colors = seuratObj@misc$colors,
+  feature_labels = feature_labels
+)
 
 #format the umap plots
 umaps <- lapply(umaps, function(x){
@@ -188,17 +210,18 @@ panel_list[["S2"]] <- annotation_flow_plot
 #now build the main figure panel
 panel_list[["A"]] <- umaps[[1]]
 panel_list[["B"]] <- umap_per_day
-panel_list[["C"]] <- cluster_mapping_plot
-panel_list[["D"]] <- umaps[[3]]
+panel_list[["C"]] <- umaps[[3]]
+panel_list[["D"]] <- cluster_mapping_plot
 panel_list[["E"]] <- annotations_per_day_plot
 panel_list <- lapply(panel_list, free_lab)
-top_right_bottom <- align_plots(free_lab(panel_list[["C"]]), panel_list[["D"]], panel_list[["E"]], nrow = 1) 
-top_right <- align_plots(panel_list[["B"]], top_right_bottom, ncol = 1, heights = c(0.4, 0.6))
-top <- align_plots(panel_list[["A"]], top_right, nrow = 1, widths = c(0.3, 0.7))
-bottom <- align_plots(panel_list[["D"]], panel_list[["E"]], nrow = 1)
 
-#final_plot <- align_plots(top, bottom, ncol = 1, heights = c(0.7, 0.3)) + layout_tags("A")
-final_plot <- top
+#build sub panels
+panel_list[["D-E"]] <- align_plots(panel_list[["D"]], panel_list[["E"]], nrow = 1, guides = "r") 
+panel_list[["C-E"]] <- align_plots(panel_list[["C"]], panel_list[["D-E"]], nrow = 1, widths = c(0.33, 0.66))
+panel_list[["B-E"]] <- align_plots(panel_list[["B"]], panel_list[["C-E"]], ncol = 1, heights = c(0.4, 0.6))
+panel_list[["A-E"]] <- align_plots(panel_list[["A"]], panel_list[["B-E"]], nrow = 1, widths = c(0.4, 0.6))
+
+final_plot <- panel_list[["A-E"]] + layout_tags("A")
 
 #save the figure
 dir.create("../Figures")

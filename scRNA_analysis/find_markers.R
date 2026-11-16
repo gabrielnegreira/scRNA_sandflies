@@ -5,8 +5,9 @@ rm(list = ls(all.names = TRUE))
 gc()
 
 #load libraries####
-library(glmGamPoi)
 library(Seurat)
+library(glmGamPoi)
+library(presto)
 library(MAST)
 library(tidyverse)
 library(conflicted)
@@ -25,11 +26,11 @@ morphotype_colors <- morphotype_colors
 cell_cycle_colors <- cell_cycle_colors
 
 #set paths
-seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_processed.rds"
+seuratObj_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds"
 out_dir <- "../outputs/scRNA/Heatmaps"
 
 ##set parameters####
-categories_to_group <- c("seurat_clusters", "atlas.stages.ident", "assigned_morphotype_final")
+categories_to_group <- c("seurat_clusters")
 
 #set outputs paths based on input object name####
 base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))
@@ -45,20 +46,22 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 #actual analysis####
 ##read the seurat object####
 seuratObj <- readRDS(file = seuratObj_path)
-seuratObj@misc$colors$assigned_morphotype_final <- morphotype_colors
-
-#temporary: set cluster 9 to `gamete-like`
-seuratObj@meta.data <- seuratObj@meta.data %>%
-  mutate(assigned_morphotype_final = ifelse(seurat_clusters == "9", "gamete-like", as.character(assigned_morphotype_final)))
 
 #run SCT on it
 #seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
 #seuratObj <- SCTransform(seuratObj, return.only.var.genes = FALSE)
-#seuratObj <- PrepSCTFindMarkers(seuratObj)
+seuratObj <- PrepSCTFindMarkers(seuratObj)
 
 #check marker genes####
 for(Category in categories_to_group){
-  marker_genes <- FindAllMarkers(seuratObj, group.by = Category, logfc.threshold = log2(1.5), test.use = "MAST", only.pos = T, min.pct = 0.1)
+  marker_genes <- FindAllMarkers(
+    seuratObj, 
+    #features = VariableFeatures(seuratObj),
+    group.by = Category, 
+    logfc.threshold = log2(1.5), 
+    only.pos = T, 
+    min.pct = 0.1
+    )
   marker_genes <- marker_genes %>%
     filter(p_val_adj < 0.05) %>%
     group_by(cluster) %>%
@@ -78,18 +81,18 @@ for(Category in categories_to_group){
   genes_to_plot <- marker_genes %>%
     group_by(cluster) %>%
     slice_max(order_by = avg_log2FC, n = 20) %>%
-    pull("transcript_id") %>%
+    pull("gene") %>%
     unique()
   
   #plot heatmap####
-  gene_names <- seuratObj@assays$RNA@meta.data %>%
-    rownames_to_column("rowname") %>%
-    select(rowname, cellranger_name) %>%
-    deframe()
+  #gene_names <- seuratObj@assays$RNA@meta.data %>%
+  #    rownames_to_column("rowname") %>%
+  #   select(rowname, cellranger_name) %>%
+  #  deframe()
   
   plot <- DoHeatmap_plus(seuratObj, 
                          features = genes_to_plot,
-                         feature_labels = gene_names,
+                         #feature_labels = gene_names,
                          group.by = c(Category, categories_to_group[categories_to_group != Category]),
                          group.colors = seuratObj@misc[["colors"]]
   )

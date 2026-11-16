@@ -27,7 +27,7 @@ library(clusterExperiment)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 
 #set paths
-seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_processed.rds"
+seuratObj_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds"
 
 #inputs####
 seuratObj <- readRDS(seuratObj_path)
@@ -42,15 +42,16 @@ lineages_to_test <- NULL
 
 #set values
 seed_to_use <- 3778473
-traj_reduction <- "pca"
-vis_reduction <- "pca"
-dims_to_use <- 1:20
-cluster_variable <- "seurat_clusters"
-conditions_col <- "assigned_morphotype_final"
-start_cluster <- "8"
-lineages_to_test <- c(1, 2)
-#end_cluster <- "early_g1"
-#end_cluster <- "g2_m"
+traj_reduction <- "pca_RNA"
+vis_reduction <- "umap_RNA"
+dims_to_use <- 1:14
+cluster_variable <- "assigned_morphotype_final" #metadata variable used to arrange cells
+visualization_variable <- "assigned_morphotype_final" #metadata variable used to visualize distributions over pseudotimes
+start_cluster <- "amastigotes"
+lineages_to_test <- c(1:6)
+end_cluster <- c("1", "8")
+end_cluster <- NULL
+
 #create a subdirectory where the trajectory results will be stored
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -63,10 +64,8 @@ if(is.numeric(seed_to_use)){
 }
 set.seed(seed_value)
 
-#create GMM clusterings
-if(cluster_variable == "GMM_clusters"){
-  seuratObj@meta.data$GMM_clusters <- Mclust(Embeddings(seuratObj, reduction = traj_reduction, G = 1))$classification
-}
+#remove cluster 10
+seuratObj <- subset(seuratObj, seurat_clusters != "10")
 
 #visualize the clustering
 plot_number <- 1
@@ -154,7 +153,7 @@ show(plot)
   
 #check distribution of clusters along trajectories
 to_plot <- seuratObj@meta.data %>%
-  select(matches(c(conditions_col, cluster_variable)), contains("slingLineage")) %>%
+  select(matches(c(visualization_variable)), contains("slingLineage")) %>%
   pivot_longer(cols = contains("slingLineage"), names_to = "lineage", values_to = "pseudotime") %>%
   mutate(lineage = gsub("slingLineage_", "Lineage ", lineage)) %>%
   filter(lineage %in% paste("Lineage", lineages_to_test))
@@ -165,14 +164,13 @@ max_pseudotime <- max(to_plot$pseudotime, na.rm = TRUE)
 plot <- to_plot %>%
   mutate(pseudotime = ifelse(is.na(pseudotime), max_pseudotime*2, pseudotime)) %>%
   ggplot(aes(x = pseudotime, 
-             #y = fct_rev(.data[[cluster_variable]]), 
-             #heigth = after_stat(density),
-             fill = .data[[cluster_variable]]))+
-  geom_density(alpha = 0.5, aes(y = after_stat(count)))+
-  #geom_density_ridges(alpha = 0.5, panel_scaling = FALSE, scale = 5, from = 0, to = max_pseudotime, bandwidth = 0.3)+
-  scale_fill_manual(values = seuratObj@misc$colors[[cluster_variable]])+
-  #labs(y = NULL, x = "Pseudotime", fill = "Annotation")+
-  facet_grid(rows = vars(lineage), cols = vars(.data[[conditions_col]]))+
+             y = fct_rev(.data[[visualization_variable]]), 
+             heigth = after_stat(density),
+             fill = .data[[visualization_variable]]))+
+  geom_density_ridges(alpha = 0.5, panel_scaling = FALSE, scale = 5, from = 0, to = max_pseudotime, bandwidth = 0.3)+
+  scale_fill_manual(values = seuratObj@misc$colors[[visualization_variable]])+
+  labs(y = NULL, x = "Pseudotime", fill = "Annotation")+
+  facet_grid(rows = vars(lineage))+
   #guides(fill = "none")+
   theme_ridges()+
   theme(panel.grid.major = element_line(color = "#f7f7f7"),

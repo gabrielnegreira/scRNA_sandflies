@@ -32,15 +32,16 @@ morphotype_colors <- morphotype_colors
 cell_cycle_colors <- cell_cycle_colors
 
 #set paths
-seuratObj_path <- "../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_unprocessed.rds"
-out_dir <- "../inputs/scRNA/seurat_objects/"
+seuratObj_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_unprocessed.rds"
+out_dir <- "../inputs/scRNA/seurat_objects/sandfly_data/"
 
 ##set parameters####
 qc_vars <- c("percent_mito", "nCount_RNA") #chose qc features to remove outlier cells
-n_variable_features <- 850 #choose how many variable features to use (here, 10% of total genes)
-pca_dims <- 1:13 #choose PCA dimensions to use for downstream analysis
+n_variable_features <- 2000 #choose how many variable features to use (here, 10% of total genes)
+pca_dims <- 1:14 #choose PCA dimensions to use for downstream analysis
 cluster_resolution <- 0.5 #choose a resolution for cell clustering
 subcluster_resolution <- 0.5 #choose a resolution for spliting clusters into subclusters
+morpho_by_cluster <- FALSE
 
 #set outputs paths based on input object name####
 base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))
@@ -56,6 +57,29 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 #actual analysis####
 ##read the seurat object####
 seuratObj <- readRDS(file = seuratObj_path)
+
+##remove free-promastigotes####
+### microscopy inspection of day 0 revealled several free-swiming promastigotes. We remove them here.
+##map data to L major atlas to define morphotypes####
+Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
+  select(seurat_id, Lm) %>%
+  deframe()
+
+seuratObj <- meta_from_ref(
+  query_obj = seuratObj, 
+  ref_obj = readRDS(Lmj_ref_obj),
+  dims = pca_dims,
+  metadata_to_extract = "stages.ident",
+  prefix = "atlas.",
+  id_conversion = Ld_to_Lmj,
+  normalization_method = "SCT"
+)
+
+cells_to_keep <- seuratObj@meta.data %>%
+  filter(pbm_day != "day00" | atlas.stages.ident == "amastigotes") %>%
+  rownames()
+
+seuratObj <- subset(seuratObj, cells = cells_to_keep)
 
 ##remove outlier cells and lowly expressed genes####
 ###update cells metadata to include expression of mitochondrial and ribosomal genes
@@ -83,26 +107,27 @@ seuratObj@meta.data <- seuratObj@meta.data %>%
 seuratObj <- subset(seuratObj, !to_remove) 
 
 ##split the object per library####
-seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
+#seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
 
 ##Normalize and scale genes per library####
-seuratObj <- scran_normalize(seuratObj)
-seuratObj <- FindVariableFeatures(seuratObj, nfeatures =  n_variable_features)
-seuratObj <- ScaleData(seuratObj) 
-
-##run PCA####
-seuratObj <- RunPCA(seuratObj, verbose = FALSE)
+seuratObj <- SCTransform(seuratObj, vars.to.regress = c("percent_mito"))
+seuratObj <- RunPCA(
+  seuratObj,
+  features = VariableFeatures(seuratObj), 
+  reduction.name =  paste0("pca_", DefaultAssay(seuratObj)), 
+  verbose = FALSE
+  )
 
 ##cluster cells####
 set.seed(123)
-seuratObj <- FindNeighbors(seuratObj, reduction = "pca", dims = pca_dims, nn.method = "annoy")
+seuratObj <- FindNeighbors(seuratObj, reduction = paste0("pca_", DefaultAssay(seuratObj)), dims = pca_dims, nn.method = "annoy")
 seuratObj <- FindClusters(seuratObj, resolution = cluster_resolution)
-seuratObj$seurat_clusters <- seuratObj[[paste0("RNA_snn_res.",cluster_resolution)]]
+seuratObj$seurat_clusters <- seuratObj[[paste0(DefaultAssay(seuratObj), "_snn_res.",cluster_resolution)]]
 seuratObj <- SetIdent(seuratObj, value = "seurat_clusters")
 seuratObj@misc$colors$seurat_clusters <- create_colors(unique(seuratObj$seurat_clusters))
 
 ##Run UMAP####
-seuratObj <- RunUMAP(seuratObj, reduction = "pca", dims = pca_dims)
+seuratObj <- RunUMAP(seuratObj, reduction = paste0("pca_", DefaultAssay(seuratObj)), dims = pca_dims)
 
 ##join layers####
 seuratObj[["RNA"]] <- JoinLayers(seuratObj[["RNA"]])
@@ -111,23 +136,6 @@ seuratObj <- FindVariableFeatures(seuratObj, nfeatures =  n_variable_features) #
 ##define cell cycle####
 source(cell_cycle_script)
 seuratObj@misc[["colors"]][["cell_cycle_phase"]] <- cell_cycle_colors
-
-##map data to L major atlas to define morphotypes####
-Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
-  select(seurat_id, Lm) %>%
-  deframe()
-
-seuratObj <- meta_from_ref(
-  query_obj = seuratObj, 
-  ref_obj = readRDS(Lmj_ref_obj),
-  dims = pca_dims,
-  #subsample_ref = 5000,
-  metadata_to_extract = "stages.ident",
-  prefix = "atlas.",
-  normalization_method = ifelse(DefaultAssay(seuratObj) == "SCT", "SCT", "LogNormalize"),
-  #vars_to_regress = "nCount_RNA",
-  id_conversion = Ld_to_Lmj
-)
 
 #set factor levels
 morpho_levels <- names(morphotype_colors)
@@ -156,7 +164,7 @@ mix_clusters <- morpho_table %>%
 
 ##### then for each mixed cluster, find subclusters
 for(Cluster in mix_clusters){
-  seuratObj <- FindSubCluster(seuratObj, cluster = Cluster, graph.name = "RNA_snn", resolution = subcluster_resolution, subcluster.name = paste0("subcluster_of_", Cluster))
+  seuratObj <- FindSubCluster(seuratObj, cluster = Cluster, graph.name = paste0(DefaultAssay(seuratObj),"_snn"), resolution = subcluster_resolution, subcluster.name = paste0("subcluster_of_", Cluster))
 }
 
 ##### combine the results into a single column
@@ -181,26 +189,34 @@ unchanged_clusters <- names(seuratObj@misc$colors$subcluster)[unchanged_clusters
 seuratObj@misc$colors$subcluster[unchanged_clusters] <- seuratObj@misc$colors$seurat_clusters[unchanged_clusters]
 
 ####Now reassigned morphotypes
-seuratObj@meta.data <- seuratObj@meta.data %>%
-  rownames_to_column("rowname") %>%
-  left_join(
-    seuratObj@meta.data %>%
-      group_by(subcluster, atlas.stages.ident) %>%
-      summarise(n_cells = n()) %>%
-      group_by(subcluster) %>%
-      filter(n_cells == max(n_cells)) %>%
-      rename(assigned_morphotype_final = atlas.stages.ident) %>%
-      group_by(subcluster) %>%
-      mutate(n = n()) %>% 
-      filter(n == 1 | n > 1 & assigned_morphotype_final != "leptomonads") %>% #in case of a tie will favor other forms than leptomonads
-      select(subcluster, assigned_morphotype_final) 
-    , by = "subcluster"
-  ) %>%
-  mutate(assigned_morphotype_final = factor(assigned_morphotype_final, levels = names(morphotype_colors))) %>%
-  column_to_rownames("rowname")
+if(morpho_by_cluster){
+  seuratObj@meta.data <- seuratObj@meta.data %>%
+    rownames_to_column("rowname") %>%
+    left_join(
+      seuratObj@meta.data %>%
+        group_by(subcluster, atlas.stages.ident) %>%
+        summarise(n_cells = n()) %>%
+        group_by(subcluster) %>%
+        filter(n_cells == max(n_cells)) %>%
+        rename(assigned_morphotype_final = atlas.stages.ident) %>%
+        group_by(subcluster) %>%
+        mutate(n = n()) %>% 
+        filter(n == 1 | n > 1 & assigned_morphotype_final != "leptomonads") %>% #in case of a tie will favor other forms than leptomonads
+        filter(n == 1 | n > 1 & assigned_morphotype_final != "procyclics") %>% #in case of a tie will favor other forms than procyclics
+        select(subcluster, assigned_morphotype_final) 
+      , by = "subcluster"
+    ) %>%
+    mutate(assigned_morphotype_final = factor(assigned_morphotype_final, levels = names(morphotype_colors))) %>%
+    column_to_rownames("rowname")
+}else{
+  seuratObj$assigned_morphotype_final <- seuratObj$atlas.stages.ident
+}
+
 
 ####set colors for new assigned morphotypes
 seuratObj@misc$colors$assigned_morphotype_final <- morphotype_colors
 
 #save the seurat object to disk
 saveRDS(seuratObj, file = paste0(out_dir, "/", out_seurat_name))
+
+source("scRNA_analysis/Figure 1.R")
