@@ -11,7 +11,7 @@ source("scRNA_analysis/env.R")
 source("color_pallets.R")
 
 #get the seurat object
-seuratObj <- readRDS("../inputs/scRNA/seurat_objects/seuratObj_all_timepoints_processed.rds")
+seuratObj <- readRDS("../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds")
 #temporary: update colors
 seuratObj@misc$colors$atlas.stages.ident <- morphotype_colors
 
@@ -50,10 +50,10 @@ metacyclic_markers <- c(
 )
 
 genes_of_interest[["metacyclic-markers"]] <-  seuratObj[["RNA"]]@meta.data %>%
-  filter(grepl(paste0(metacyclic_markers, collapse = "|"), tolower(cellranger_name))) %>%
-  select(cellranger_name) %>%
+  filter(grepl(paste0(metacyclic_markers, collapse = "|"), tolower(annotated_name))) %>%
+  select(annotated_name) %>%
   rownames_to_column("rowname") %>%
-  select(cellranger_name, rowname) %>%
+  select(annotated_name, rowname) %>%
   deframe()
 
 
@@ -61,4 +61,4 @@ VlnPlot(seuratObj, features = genes_of_interest$meiotic_genes_Ld, group.by = "se
 
 VlnPlot(seuratObj, features = genes_of_interest$`metacyclic-markers`, group.by = "seurat_clusters", assay = "RNA", alpha = 0.1)
 
-seuratObj[["RNA"]]@meta.data[genes_of_interest$meiotic_genes_Ld,]$cellranger_name
+seuratObj[["RNA"]]@meta.data[genes_of_interest$meiotic_genes_Ld,]$annotated_name

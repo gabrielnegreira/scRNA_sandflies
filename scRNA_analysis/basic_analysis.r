@@ -8,16 +8,18 @@ gc()
 library(Seurat)
 library(tidyverse)
 library(conflicted)
+library(clustree)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 source("scRNA_analysis/env.R")
 source("color_pallets.R")
 
 #fix package conflicts
 conflict_prefer("rename", "dplyr")
-
+conflict_prefer("filter", "dplyr")
 #set paths#### 
 cellranger_outs_path <- "../inputs/scRNA/cellranger_outputs/sandfly_data/"
 out_seurat_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds"
+out_plots_dir <- "../outputs/scRNA/UMAPs/"
 
 dirs <- list.dirs(cellranger_outs_path, recursive = FALSE)
 
@@ -54,8 +56,7 @@ objects$`107706-001-001` <- meta_from_ref(
   dims = pca_dims,
   metadata_to_extract = "stages.ident",
   prefix = "atlas.",
-  id_conversion = Ld_to_Lmj,
-  normalization_method = "SCT"
+  id_conversion = Ld_to_Lmj
 )
 
 ##remove non-amastigotes
@@ -76,20 +77,19 @@ seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito")
 seuratObj <- RunPCA(seuratObj, verbose = FALSE)
 seuratObj <- RunUMAP(seuratObj, dims = pca_dims)
 seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
-seuratObj <- FindClusters(seuratObj, resolution = 0.5)
+seuratObj <- FindClusters(seuratObj, resolution = 0.7)
 
-#now map the whole dataset to the atlas####
+#assigned morphotypes to clusters/subclusters####
+##map it to reference
 seuratObj <- meta_from_ref(
   query_obj = seuratObj,
   ref_obj = readRDS(Lmj_ref_obj),
   dims = pca_dims,
   metadata_to_extract = "stages.ident",
   prefix = "atlas.",
-  #normalization_method = "SCT",
   id_conversion = Ld_to_Lmj
 )
 
-#assigned morphotypes to clusters/subclusters####
 ####get a table with the most frequent morphotype for each cluster
 morpho_table <- seuratObj@meta.data %>%
   group_by(seurat_clusters, atlas.stages.ident) %>%
@@ -113,7 +113,8 @@ for(Cluster in mix_clusters){
 
 ##### combine the results into a single column
 cluster_cols <- grep("subcluster_of", colnames(seuratObj@meta.data), value = TRUE)
-seuratObj@meta.data$subcluster <- apply(seuratObj@meta.data[,cluster_cols, drop = FALSE], 1, function(x){
+cluster_table <- seuratObj@meta.data[,cluster_cols, drop = FALSE]
+seuratObj@meta.data$subcluster <- apply(cluster_table, 1, function(x){
   x <- as.character(x)
   counts <- table(x)
   
@@ -137,6 +138,8 @@ seuratObj@meta.data <- seuratObj@meta.data %>%
       group_by(seurat_clusters, subcluster) %>%
       filter(n_cells == max(n_cells)) %>%
       rename(assigned_morphotype = atlas.stages.ident) %>%
+      group_by(subcluster) %>%
+      mutate(n = n()) %>%
       ungroup() %>%
       select(subcluster, assigned_morphotype) 
     , by = "subcluster"
@@ -159,10 +162,13 @@ seuratObj@misc$colors$pbm_day <- pbm_day_colors
 seuratObj@misc$colors$seurat_clusters <- create_colors(unique(seuratObj@meta.data$seurat_clusters), palette = "all colors")
 seuratObj@misc$colors$subcluster <- create_colors(unique(seuratObj$subcluster), palette = "fancy light")
 
-######keep the colors for the unchanged clusters
+##keep the colors for the unchanged clusters
 unchanged_clusters <- which(names(seuratObj@misc$colors$subcluster) %in% names(seuratObj@misc$colors$seurat_clusters))
 unchanged_clusters <- names(seuratObj@misc$colors$subcluster)[unchanged_clusters]
 seuratObj@misc$colors$subcluster[unchanged_clusters] <- seuratObj@misc$colors$seurat_clusters[unchanged_clusters]
+
+#append genes_metadata####
+source("scRNA_analysis/add_genes_metadata.R")
 
 #visualize the annotations####
 plot_list <- list()
@@ -171,7 +177,9 @@ for(Category in c("pbm_day", "atlas.stages.ident", "seurat_clusters", "assigned_
 }
 
 final_plot <- ggalign::align_plots(!!!plot_list, ncol = 1)
-final_plot
 
-#save the object to disk
+dir.create(out_plots_dir, showWarnings = FALSE)
+ggsave(paste0(out_plots_dir, "/UMAPs.pdf"), final_plot, height = 5 * length(plot_list), width = 8)
+
+#save the object to disk####
 saveRDS(seuratObj, file = out_seurat_path)
