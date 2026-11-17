@@ -1,3 +1,5 @@
+#This script performs the basic seurat worflow and add morphotype anotations based on the L. major atlas.
+
 #clean the environment####
 rm(list = ls(all.names = TRUE))
 gc()
@@ -5,8 +7,13 @@ gc()
 #libraries####
 library(Seurat)
 library(tidyverse)
+library(conflicted)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 source("scRNA_analysis/env.R")
+source("color_pallets.R")
+
+#fix package conflicts
+conflict_prefer("rename", "dplyr")
 
 #set paths#### 
 cellranger_outs_path <- "../inputs/scRNA/cellranger_outputs/sandfly_data/"
@@ -40,10 +47,10 @@ Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>%
   select(seurat_id, Lm) %>%
   deframe()
 
-#map the object to the atlas
+##map the object to the atlas
 objects$`107706-001-001` <- meta_from_ref(
   query_obj = objects$`107706-001-001`,
-  ref_obj = readRDS("../inputs/scRNA/seurat_objects/Lmj_Atlas.rds"),
+  ref_obj = readRDS(Lmj_ref_obj),
   dims = pca_dims,
   metadata_to_extract = "stages.ident",
   prefix = "atlas.",
@@ -51,25 +58,120 @@ objects$`107706-001-001` <- meta_from_ref(
   normalization_method = "SCT"
 )
 
-#remove non-amastigotes
+##remove non-amastigotes
 objects$`107706-001-001` <- subset(objects$`107706-001-001`, atlas.stages.ident == "amastigotes")
 objects$`107706-001-001`$atlas.stages.ident <- NULL
 objects$`107706-001-001`$atlas.stages.ident.score <- NULL
 
-#SCT transformation of each object####
+#Normalize and scale each object####
 objects <- lapply(objects, NormalizeData)
 objects <- lapply(objects, ScaleData)
 
 #merge the objects
 seuratObj <- merge(objects[[1]], objects[(c(2:length(objects)))], add.cell.ids = names(objects), project = "sandflies")
 
-#now run analysis on merged object
+#now run analysis on merged object####
 seuratObj <- JoinLayers(seuratObj)
 seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito")
 seuratObj <- RunPCA(seuratObj, verbose = FALSE)
 seuratObj <- RunUMAP(seuratObj, dims = pca_dims)
 seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
 seuratObj <- FindClusters(seuratObj, resolution = 0.5)
+
+#now map the whole dataset to the atlas####
+seuratObj <- meta_from_ref(
+  query_obj = seuratObj,
+  ref_obj = readRDS(Lmj_ref_obj),
+  dims = pca_dims,
+  metadata_to_extract = "stages.ident",
+  prefix = "atlas.",
+  #normalization_method = "SCT",
+  id_conversion = Ld_to_Lmj
+)
+
+#assigned morphotypes to clusters/subclusters####
+####get a table with the most frequent morphotype for each cluster
+morpho_table <- seuratObj@meta.data %>%
+  group_by(seurat_clusters, atlas.stages.ident) %>%
+  summarise(n_cells = n()) %>%
+  group_by(seurat_clusters) %>%
+  mutate(n_cells_total = sum(n_cells)) %>%
+  mutate(prop = n_cells/n_cells_total) %>%
+  filter(prop == max(prop)) 
+
+####since some clusters are mixture, we will find subclusters for them
+#####first, define which clusters are mixed
+mix_clusters <- morpho_table %>%
+  filter(prop < 0.7) %>% #so any cluster where at least 30% of the cells were assigned a different morphotype is considered a mixed cluster
+  pull("seurat_clusters") %>%
+  as.character()
+
+##### then for each mixed cluster, find subclusters
+for(Cluster in mix_clusters){
+  seuratObj <- FindSubCluster(seuratObj, cluster = Cluster, graph.name = paste0(DefaultAssay(seuratObj),"_snn"), subcluster.name = paste0("subcluster_of_", Cluster))
+}
+
+##### combine the results into a single column
+cluster_cols <- grep("subcluster_of", colnames(seuratObj@meta.data), value = TRUE)
+seuratObj@meta.data$subcluster <- apply(seuratObj@meta.data[,cluster_cols, drop = FALSE], 1, function(x){
+  x <- as.character(x)
+  counts <- table(x)
+  
+  if(length(counts) == 1){
+    x <- x[1]
+  }else{
+    x <- names(counts)[counts == 1][1]
+  }
+  return(x)
+})
+
+####Now reassigned morphotypes
+seuratObj@meta.data <- seuratObj@meta.data %>%
+  rownames_to_column("rowname") %>%
+  left_join(
+    seuratObj@meta.data %>%
+      group_by(seurat_clusters, subcluster, atlas.stages.ident) %>%
+      summarise(n_cells = n()) %>%
+      group_by(seurat_clusters) %>%
+      mutate(mother_cluster_morphotype = atlas.stages.ident[which(n_cells == max(n_cells))]) %>%
+      group_by(seurat_clusters, subcluster) %>%
+      filter(n_cells == max(n_cells)) %>%
+      rename(assigned_morphotype = atlas.stages.ident) %>%
+      ungroup() %>%
+      select(subcluster, assigned_morphotype) 
+    , by = "subcluster"
+  ) %>%
+  column_to_rownames("rowname")
+
+#set factor level for annotations####
+seuratObj@meta.data$assigned_morphotype <- factor(seuratObj@meta.data$assigned_morphotype, levels = names(morphotype_colors))
+seuratObj@meta.data$atlas.stages.ident <- factor(seuratObj@meta.data$atlas.stages.ident, levels = names(morphotype_colors))
+seuratObj@meta.data$orig.ident <- factor(seuratObj@meta.data$orig.ident)
+
+#define pbm_day####
+seuratObj@meta.data <- seuratObj@meta.data %>%
+  mutate(pbm_day = c("day00", "day02", "day04", "day06", "day10")[as.integer(orig.ident)])
+
+#assign colors for clusters and morphotypes####
+seuratObj@misc$colors$atlas.stages.ident <- morphotype_colors
+seuratObj@misc$colors$assigned_morphotype <- morphotype_colors
+seuratObj@misc$colors$pbm_day <- pbm_day_colors
+seuratObj@misc$colors$seurat_clusters <- create_colors(unique(seuratObj@meta.data$seurat_clusters), palette = "all colors")
+seuratObj@misc$colors$subcluster <- create_colors(unique(seuratObj$subcluster), palette = "fancy light")
+
+######keep the colors for the unchanged clusters
+unchanged_clusters <- which(names(seuratObj@misc$colors$subcluster) %in% names(seuratObj@misc$colors$seurat_clusters))
+unchanged_clusters <- names(seuratObj@misc$colors$subcluster)[unchanged_clusters]
+seuratObj@misc$colors$subcluster[unchanged_clusters] <- seuratObj@misc$colors$seurat_clusters[unchanged_clusters]
+
+#visualize the annotations####
+plot_list <- list()
+for(Category in c("pbm_day", "atlas.stages.ident", "seurat_clusters", "assigned_morphotype")){
+  plot_list[[Category]] <- DimPlot(seuratObj, group.by = Category, cols = seuratObj@misc$colors[[Category]])
+}
+
+final_plot <- ggalign::align_plots(!!!plot_list, ncol = 1)
+final_plot
 
 #save the object to disk
 saveRDS(seuratObj, file = out_seurat_path)
