@@ -78,6 +78,7 @@ objects$`107706-001-001` <- meta_from_ref(
   dims = pca_dims,
   metadata_to_extract = "stages.ident",
   prefix = "atlas.",
+  normalization_method = "SCT",
   id_conversion = Ld_to_Lmj
 )
 
