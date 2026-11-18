@@ -26,11 +26,7 @@ conflict_prefer("crossing", "tidyr")
 seuratObj <- readRDS("../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds")
 #get cluster markers
 cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
-  mutate(feature_id = gsub("_", "-", cellranger_id))
-
-#temporary: test different cluster resolutions
-#seuratObj$seurat_clusters <- seuratObj$RNA_snn_res.0.5
-#seuratObj@misc$colors$seurat_clusters <- create_colors(levels(seuratObj$seurat_clusters))
+  mutate(feature_id = gsub("_", "-", seurat_id))
 
 #temporary: set a custom color for pbm_day
 seuratObj@misc$colors$pbm_day <- pbm_day_colors
@@ -83,19 +79,19 @@ umaps[[2]] <- DimPlot(seuratObj, group.by = "atlas.stages.ident", cols = seuratO
 
 #plot the morphotype_to_cluster mapping
 cluster_mapping_plot <- seuratObj@meta.data %>%
-  group_by(seurat_clusters, assigned_morphotype_final) %>%
+  group_by(seurat_clusters, assigned_morphotype) %>%
   summarise(n_cells = n()) %>%
-  ggplot(aes(x = seurat_clusters, y = n_cells, fill = assigned_morphotype_final))+
+  ggplot(aes(x = seurat_clusters, y = n_cells, fill = assigned_morphotype))+
   geom_col()+
   guides(fill = "none")+
   scale_fill_manual(values = seuratObj@misc$colors$atlas.stages.ident, name = "Morphotype")
 
 #plot umap with final assigned morphotypes
-umaps[[3]] <- DimPlot(seuratObj, group.by = "assigned_morphotype_final", cols = seuratObj@misc$colors$assigned_morphotype_final)
+umaps[[3]] <- DimPlot(seuratObj, group.by = "assigned_morphotype", cols = seuratObj@misc$colors$assigned_morphotype)
 
 #plot the flow for anotation####
 ##set the columns to plot
-flow_columns <- c("atlas.stages.ident","seurat_clusters", "subcluster", "assigned_morphotype_final")
+flow_columns <- c("atlas.stages.ident","seurat_clusters", "subcluster", "assigned_morphotype")
 
 ##set subcluster factor levels
 subcluster_levels <- seuratObj@meta.data %>%
@@ -145,18 +141,18 @@ annotation_flow_plot <- ggplot(lodes, aes(x = x, y = n_cells, alluvium = alluviu
 
 #plot annotations per day
 annotations_per_day_plot <- seuratObj@meta.data %>%
-  select(pbm_day, assigned_morphotype_final)%>%
-  group_by(pbm_day, assigned_morphotype_final)%>%
+  select(pbm_day, assigned_morphotype)%>%
+  group_by(pbm_day, assigned_morphotype)%>%
   summarise(ncells = n(), .groups = "drop") %>%
-  complete(pbm_day, assigned_morphotype_final, fill = list(ncells = 0)) %>%
+  complete(pbm_day, assigned_morphotype, fill = list(ncells = 0)) %>%
   group_by(pbm_day) %>%
   mutate(percent = ncells/sum(ncells)) %>%
   mutate(percent_text = paste0(round(percent*100, 1), "%"))%>%
   mutate(percent_text = ifelse(percent < 0.1, NA, percent_text)) %>%
-  ggplot(aes(x = pbm_day, alluvium = assigned_morphotype_final, stratum = assigned_morphotype_final, y = percent, fill = assigned_morphotype_final, label = percent_text))+
+  ggplot(aes(x = pbm_day, alluvium = assigned_morphotype, stratum = assigned_morphotype, y = percent, fill = assigned_morphotype, label = percent_text))+
   geom_alluvium(alpha = 0.8, decreasing = FALSE)+geom_text_repel(stat = "stratum", decreasing = FALSE, direction = "y", nudge_x = 0.1)+
   labs(fill = "Morphotype", x = "Library", y = "Percentage")+
-  scale_fill_manual(values = seuratObj@misc$colors$assigned_morphotype_final)+
+  scale_fill_manual(values = seuratObj@misc$colors$assigned_morphotype)+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 #plot cluster marker genes
@@ -167,7 +163,7 @@ features_to_plot <- cluster_markers %>%
 
 feature_labels <- cluster_markers %>%
   filter(feature_id %in% features_to_plot) %>%
-  select(feature_id, cellranger_name) %>%
+  select(feature_id, annotated_name) %>%
   deframe()
 
 cluster_markers_plot <- DoHeatmap_plus(
