@@ -98,7 +98,7 @@ seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.onl
 seuratObj <- RunPCA(seuratObj, verbose = FALSE)
 seuratObj <- RunUMAP(seuratObj, dims = pca_dims)
 seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
-seuratObj <- FindClusters(seuratObj, resolution = 0.55)
+seuratObj <- FindClusters(seuratObj, resolution = 0.6)
 
 #assigned morphotypes to clusters/subclusters####
 ##map it to reference
