@@ -47,25 +47,19 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 ##read the seurat object####
 seuratObj <- readRDS(file = seuratObj_path)
 
-#run SCT on it
-#seuratObj[["RNA"]] <- split(seuratObj[["RNA"]], f = seuratObj$orig.ident)
-#seuratObj <- SCTransform(seuratObj, return.only.var.genes = FALSE)
+#prepare SCT markers
 seuratObj <- PrepSCTFindMarkers(seuratObj)
 
-
-#temporary: to find marker of clusters at different resolutions
-categories_to_group <- grep("snn_res", colnames(seuratObj@meta.data), value = TRUE)
-categories_to_group <- categories_to_group[c(2:length(categories_to_group))]
 #check marker genes####
 for(Category in categories_to_group){
   marker_genes <- FindAllMarkers(
     seuratObj, 
-    #features = VariableFeatures(seuratObj),
     group.by = Category, 
     logfc.threshold = log2(1.5), 
     only.pos = T, 
     min.pct = 0.1
     )
+  
   marker_genes <- marker_genes %>%
     filter(p_val_adj < 0.05) %>%
     group_by(cluster) %>%
@@ -91,7 +85,7 @@ for(Category in categories_to_group){
   #plot heatmap####
   gene_names <- seuratObj@assays$RNA@meta.data %>%
      rownames_to_column("rowname") %>%
-    select(rowname, annotated_name) %>%
+    select(rowname, cellranger_name) %>%
    deframe()
   
   plot <- DoHeatmap_plus(seuratObj, 
