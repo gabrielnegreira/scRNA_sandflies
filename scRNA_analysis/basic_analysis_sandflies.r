@@ -20,7 +20,7 @@ conflict_prefer("rowSds", "MatrixGenerics")
 #set paths#### 
 cellranger_outs_path <- "../inputs/scRNA/cellranger_outputs/sandfly_data/"
 out_seurat_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds"
-out_plots_dir <- "../outputs/scRNA/UMAPs/"
+out_plots_dir <- "../outputs/scRNA/sandflies_analysis/UMAPs/"
 
 dirs <- list.dirs(cellranger_outs_path, recursive = FALSE)
 
@@ -68,6 +68,7 @@ objects <- lapply(objects, function(x){
 #start by getting a L. donovani to L. major gene convertion table
 Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
   select(seurat_id, Lm) %>%
+  distinct() %>%
   deframe()
 
 ##map the object to the atlas
@@ -155,7 +156,6 @@ seuratObj@meta.data <- seuratObj@meta.data %>%
       group_by(seurat_clusters, subcluster, atlas.stages.ident) %>%
       summarise(n_cells = n()) %>%
       group_by(seurat_clusters) %>%
-      mutate(mother_cluster_morphotype = atlas.stages.ident[which(n_cells == max(n_cells))]) %>%
       group_by(seurat_clusters, subcluster) %>%
       filter(n_cells == max(n_cells)) %>%
       rename(assigned_morphotype = atlas.stages.ident) %>%

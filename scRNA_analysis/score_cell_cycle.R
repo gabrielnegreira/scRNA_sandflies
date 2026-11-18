@@ -1,3 +1,5 @@
+source("scRNA_analysis/env.R")
+
 ##cell cycle scoring####
 #link Tb to LdCl
 expressed <- rowMeans(seuratObj)

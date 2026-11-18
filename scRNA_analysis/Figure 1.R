@@ -97,6 +97,7 @@ clusters_per_day <- seuratObj@meta.data %>%
 
 #plot cluster marker genes####
 features_to_plot <- cluster_markers %>%
+  mutate(cluster = factor(cluster, levels = levels(seuratObj@meta.data$seurat_clusters))) %>%
   group_by(cluster) %>%
   slice_max(order_by = avg_log2FC, n = 20) %>%
   pull(feature_id)

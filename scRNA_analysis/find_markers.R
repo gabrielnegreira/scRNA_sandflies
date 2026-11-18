@@ -27,10 +27,10 @@ cell_cycle_colors <- cell_cycle_colors
 
 #set paths
 seuratObj_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds"
-out_dir <- "../outputs/scRNA/Heatmaps"
+out_dir <- "../outputs/scRNA/sandflies_analysis/Heatmaps/"
 
 ##set parameters####
-categories_to_group <- c("seurat_clusters", "assigned_morphotype")
+categories_to_group <- c("seurat_clusters", "assigned_morphotype", "atlas.stages.ident", "subcluster")
 
 #set outputs paths based on input object name####
 base_name <- gsub("_unprocessed|.rds", "", basename(seuratObj_path))

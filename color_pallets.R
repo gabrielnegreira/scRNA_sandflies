@@ -16,7 +16,7 @@ morphotype_colors <-  c(
 morphotype_colors <- create_colors(c(names(morphotype_colors), "gamete-like"), palette = "colorblind friendly")
 
 #create a color vector for the PBM day
-pbm_day_colors <- create_colors(c("day00", "day02", "day04", "day06", "day10"), palette = "fancy light")
+pbm_day_colors <- create_colors(c("day00", "day02", "day04", "day06", "day10"), palette = "pastel")
 
 #color palette for the cell cycle phases (from T. brucei scRNA paper)
 cell_cycle_colors <- c(
@@ -26,3 +26,4 @@ cell_cycle_colors <- c(
   g2m = "#8bad28",
   non_cycling = "#a9a9a8"
 )
+

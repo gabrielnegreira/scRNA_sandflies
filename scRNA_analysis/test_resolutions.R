@@ -95,7 +95,7 @@ for(Resolution in resolutions[2:length(resolutions)]){
                          features = genes_to_plot,
                          feature_labels = gene_names,
                          group.by = Resolution,
-                         group.colors = cluster_colors[[Resolution]]
+                         group.colors = cluster_colors
   )
   
   

@@ -65,8 +65,8 @@ objects <- lapply(objects, function(x){
 })
 
 #Normalize and scale each object####
-objects <- lapply(objects, NormalizeData)
-objects <- lapply(objects, ScaleData)
+#objects <- lapply(objects, NormalizeData)
+#objects <- lapply(objects, ScaleData)
 
 #merge the objects####
 seuratObj <- objects[[1]]
@@ -82,8 +82,10 @@ seuratObj <- FindClusters(seuratObj, resolution = 0.6)
 #assigned morphotypes to clusters/subclusters####
 #start by getting a L. donovani to L. major gene convertion table
 Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
+  distinct() %>%
   select(seurat_id, Lm) %>%
   deframe()
+
 ##map it to reference
 seuratObj <- meta_from_ref(
   query_obj = seuratObj,
