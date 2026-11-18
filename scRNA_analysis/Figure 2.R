@@ -26,10 +26,10 @@ conflict_prefer("crossing", "tidyr")
 seuratObj <- readRDS("../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds")
 
 #get cluster markers####
-morpho_markers <- xlsx::read.xlsx("../outputs/scRNA/sandflies/Heatmaps/assigned_morphotype_markers.xlsx", sheetIndex = 1) %>%
+morpho_markers <- xlsx::read.xlsx("../outputs/scRNA/sandflies_analysis/Heatmaps/assigned_morphotype_markers.xlsx", sheetIndex = 1) %>%
   mutate(feature_id = gsub("_", "-", seurat_id))
 
-cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/sandflies/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
+cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/sandflies_analysis/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
   mutate(feature_id = gsub("_", "-", seurat_id))
 
 #update colors####

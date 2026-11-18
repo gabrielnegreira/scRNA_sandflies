@@ -30,7 +30,7 @@ seuratObj@misc$colors$assigned_morphotype <- morphotype_colors
 seuratObj@misc$colors$pbm_day <- pbm_day_colors
 
 #get cluster markers
-cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
+cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/sandflies_analysis/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
   mutate(feature_id = gsub("_", "-", seurat_id))
 
 #plot cluster umap####
