@@ -25,7 +25,7 @@ out_plots_dir <- "../outputs/scRNA/culture_analysis/"
 dirs <- list.dirs(cellranger_outs_path, recursive = FALSE)
 
 #set parameters####
-pca_dims <- 1:14
+pca_dims <- 1:20
 project_name <- "culture"
 
 #read counts into seurat objects####
@@ -80,6 +80,10 @@ seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
 seuratObj <- FindClusters(seuratObj, resolution = 0.6)
 
 #assigned morphotypes to clusters/subclusters####
+#start by getting a L. donovani to L. major gene convertion table
+Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
+  select(seurat_id, Lm) %>%
+  deframe()
 ##map it to reference
 seuratObj <- meta_from_ref(
   query_obj = seuratObj,
@@ -134,7 +138,7 @@ seuratObj@meta.data <- seuratObj@meta.data %>%
       group_by(seurat_clusters, subcluster, atlas.stages.ident) %>%
       summarise(n_cells = n()) %>%
       group_by(seurat_clusters) %>%
-      mutate(mother_cluster_morphotype = atlas.stages.ident[which(n_cells == max(n_cells))]) %>%
+      #mutate(mother_cluster_morphotype = atlas.stages.ident[which(n_cells == max(n_cells))]) %>%
       group_by(seurat_clusters, subcluster) %>%
       filter(n_cells == max(n_cells)) %>%
       rename(assigned_morphotype = atlas.stages.ident) %>%
