@@ -7,8 +7,8 @@ gc()
 #libraries####
 library(Seurat)
 library(tidyverse)
+library(Matrix)
 library(conflicted)
-library(clustree)
 source("git_modules/scRNA_tools/scRNA_functions.R")
 source("scRNA_analysis/env.R")
 source("color_pallets.R")
@@ -16,6 +16,7 @@ source("color_pallets.R")
 #fix package conflicts
 conflict_prefer("rename", "dplyr")
 conflict_prefer("filter", "dplyr")
+conflict_prefer("rowSds", "MatrixGenerics")
 #set paths#### 
 cellranger_outs_path <- "../inputs/scRNA/cellranger_outputs/sandfly_data/"
 out_seurat_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds"
@@ -29,9 +30,29 @@ pca_dims <- 1:14
 #read counts into seurat objects####
 objects <- list()
 for(dir in dirs){
+  #get count matrix from cellranger outputs
   library <- basename(dir)
   counts <- Read10X(paste0(dir, "/filtered_feature_bc_matrix"), gene.column = 1)
+  
+  #create seurat object
   objects[[library]] <- CreateSeuratObject(counts, min.cells = 2, min.features = 200, project = library)
+  
+  #create metadata for features
+  ##get the gene names set in cellranger (thus, from the genome annotation)
+  cellranger_names <- Read10X(paste0(dir, "/filtered_feature_bc_matrix"), gene.column = 2) %>%
+    rownames()
+  
+  #format it to include a list of ids compatible with seurat
+  cellranger_names <- data.frame(cellranger_id = rownames(counts), cellranger_name = cellranger_names) %>%
+    mutate(seurat_id = gsub("_", "-", cellranger_id)) %>%
+    mutate(mean_counts = rowMeans(counts)[cellranger_id]) %>%
+    mutate(sd_counts = MatrixGenerics::rowSds(counts)[cellranger_id])
+  
+  #create the metadata
+  objects[[library]][["RNA"]]@meta.data <- data.frame(seurat_id = rownames(objects[[library]])) %>%
+    left_join(cellranger_names, by = "seurat_id") %>%
+    mutate(rowname = seurat_id) %>%
+    column_to_rownames("rowname")
 }
 
 #remove outlier cells####
@@ -68,16 +89,16 @@ objects$`107706-001-001`$atlas.stages.ident.score <- NULL
 objects <- lapply(objects, NormalizeData)
 objects <- lapply(objects, ScaleData)
 
-#merge the objects
+#merge the objects####
 seuratObj <- merge(objects[[1]], objects[(c(2:length(objects)))], add.cell.ids = names(objects), project = "sandflies")
 
 #now run analysis on merged object####
 seuratObj <- JoinLayers(seuratObj)
-seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito")
+seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE)
 seuratObj <- RunPCA(seuratObj, verbose = FALSE)
 seuratObj <- RunUMAP(seuratObj, dims = pca_dims)
 seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
-seuratObj <- FindClusters(seuratObj, resolution = 0.7)
+seuratObj <- FindClusters(seuratObj, resolution = 0.55)
 
 #assigned morphotypes to clusters/subclusters####
 ##map it to reference
@@ -139,7 +160,7 @@ seuratObj@meta.data <- seuratObj@meta.data %>%
       filter(n_cells == max(n_cells)) %>%
       rename(assigned_morphotype = atlas.stages.ident) %>%
       group_by(subcluster) %>%
-      mutate(n = n()) %>%
+      filter(assigned_morphotype == assigned_morphotype[1]) %>% #in case of ties just chose one
       ungroup() %>%
       select(subcluster, assigned_morphotype) 
     , by = "subcluster"
@@ -168,6 +189,16 @@ unchanged_clusters <- names(seuratObj@misc$colors$subcluster)[unchanged_clusters
 seuratObj@misc$colors$subcluster[unchanged_clusters] <- seuratObj@misc$colors$seurat_clusters[unchanged_clusters]
 
 #append genes_metadata####
+
+##first we need to fix feature metadata because it changes after JoinLayers
+seuratObj[["RNA"]]@meta.data <- data.frame(seurat_id = rownames(seuratObj[["RNA"]])) %>%
+  left_join(cellranger_names, by = "seurat_id") %>%
+  mutate(mean_counts = rowMeans(seuratObj[["RNA"]]$counts)[seurat_id]) %>%
+  mutate(sd_counts = rowSds(seuratObj[["RNA"]]$counts)[seurat_id]) %>%
+  mutate(rowname = seurat_id) %>%
+  column_to_rownames("rowname")
+
+##now append extra information
 source("scRNA_analysis/add_genes_metadata.R")
 
 #visualize the annotations####
