@@ -1,7 +1,5 @@
 #This script exports a dataframe with the homologs defined for LdCL transcripts
 #clean the environment
-#script to plot the figure 1 pannel
-#clean the environment
 rm(list = ls(all.names = TRUE))
 gc()
 
@@ -12,9 +10,9 @@ library(Seurat)
 
 #get homolog tables exported from trypDB
 ortho_tables <- list()
-ortho_tables[["Lmj"]] <- read_tsv("../inputs/reference_genome/LmjF_to_LdCL_TriTrypDB.tsv")
-ortho_tables[["Tb"]] <-  read_tsv("../inputs/reference_genome/Tb_to_LdCL_TriTrypDB.tsv") 
-ortho_tables[["Ltr"]] <- read_tsv("../inputs/reference_genome/LTR_to_LdCL.txt")
+ortho_tables[["Lmj"]] <- read_tsv("../inputs/external_data//LmjF_to_LdCL_TriTrypDB.tsv")
+ortho_tables[["Tb"]] <-  read_tsv("../inputs/external_data//Tb_to_LdCL_TriTrypDB.tsv") 
+ortho_tables[["Ltr"]] <- read_tsv("../inputs/external_data//LTR_to_LdCL_TriTrypDB.tsv")
 
 #format the orthology tables
 for(species in names(ortho_tables)){
@@ -25,12 +23,14 @@ for(species in names(ortho_tables)){
     select(cellranger_id, all_of(ortho_col))
 }
   
+#add sherp orthologs
+ortho_tables[["Lmj"]] <- rbind(ortho_tables[["Lmj"]], c("LdCL_230019430-t42_1", "LmjF.23.1050"))
+
 #get the gene ids of the reference genome used in cellranger
 Ld_ids <- Read10X("../inputs/scRNA/cellranger_outputs/sandfly_data/107706-001-001/filtered_feature_bc_matrix/", 1) %>%
   rownames() %>%
-  data.frame(seurat_id = .) %>%
-  mutate(cellranger_id = gsub("-", "_", seurat_id)) %>% #seurat converts underscores (_) to hifens (-). Fix it here
-  mutate(cellranger_id = gsub("_t42", "-t42", cellranger_id))
+  data.frame(cellranger_id = .) %>%
+  mutate(seurat_id = gsub("_", "-", cellranger_id)) #seurat converts underscores (_) to hifens (-). Fix it here.
 
 for(species in names(ortho_tables)){
   ortho_table <- ortho_tables[[species]]

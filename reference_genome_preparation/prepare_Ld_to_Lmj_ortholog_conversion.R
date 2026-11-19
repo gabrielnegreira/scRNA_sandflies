@@ -54,5 +54,5 @@ for(dataset_name in grep("Ld", names(count_matrices), value = TRUE)){
     rename(Lmj_ortholog = Lmj_orthologs) %>%
     select(seurat_id, cellranger_id, Lmj_ortholog, based_on_dataset)
   
-  write_tsv(converstion_table, file = paste0(out_dir, "/", dataset_name,"to_Lmj_one_to_one.tsv"))
+  write_tsv(converstion_table, file = paste0(out_dir, "/", dataset_name,"_to_Lmj_one_to_one.tsv"))
 }

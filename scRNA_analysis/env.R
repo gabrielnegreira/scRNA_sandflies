@@ -12,9 +12,13 @@ ref_multicopy_genes <- "../inputs/reference_genome/LdCL_multicopy_genes.xlsx"
 ref_GO_annotations <- "../inputs/reference_genome/LdCL_GO_terms_updated.tsv"
 
 #cross-species mapping
-Lmj_to_Ld <- "../inputs/reference_genome/Lmj_to_LdCL_one_to_one.xlsx"
 Tb_to_Ld <- "../inputs/external_data//Tb_to_LdCL_TriTrypDB.tsv"
 Ltr_to_Ld <- "../inputs/external_data/LTR_to_LdCL.txt"
+
+#orthologs for mapping to atlas
+Lmj_to_Ld_sandflies <- "../inputs/reference_genome/Ld_sandfly_to_Lmj_one_to_one.tsv"
+Lmj_to_Ld_culture <- "../inputs/reference_genome/Ld_culture_to_Lmj_one_to_one.tsv"
+
 
 #data from other species
 TrypTag_data <- "../inputs/external_data/TrypTag_localizations.tsv"
