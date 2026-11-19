@@ -118,9 +118,41 @@ cluster_markers_plot <- DoHeatmap_plus(
 )
 
 
-#plot specific markers####
-features_to_plot <- seuratObj[["RNA"]]@meta.data %>%
-  filter(grepl("sherp|dot1", tolower(cellranger_name)))
+#the marjers specified by Catta preta####
+Lmj_to_Ld <- read_tsv("../inputs/reference_genome/TripDB_based_orthologs_for_LdCL.tsv")
+Lmj_to_Ld <- Lmj_to_Ld %>%
+  select(seurat_id, Lmj_orthologs) %>%
+  separate_rows(Lmj_orthologs, sep = ",") %>%
+  group_by(Lmj_orthologs) %>%
+  summarise(seurat_id = paste0(seurat_id, collapse = ","))
+
+key_markers <- read_tsv("../inputs/external_data/Lmj_key_markers.tsv")
+key_markers <- key_markers %>%
+  filter(!is.na(gene_id)) %>%
+  rename(Lmj_orthologs = gene_id) %>%
+  left_join(Lmj_to_Ld, by = "Lmj_orthologs") %>%
+  separate_rows(seurat_id, sep = ",") %>%
+  filter(seurat_id %in% rownames(seuratObj[["RNA"]]$counts))
+
+#plot violins
+to_plot <- FetchData(seuratObj, vars = c(unique(key_markers$seurat_id), "seurat_clusters", "assigned_morphotype"), assay = "RNA", layer = "data") %>%
+  as.data.frame() %>%
+  rownames_to_column("cell") %>%
+  pivot_longer(cols = contains("Ld"), names_to = "seurat_id", values_to = "expression") %>%
+  left_join(
+    seuratObj[["RNA"]]@meta.data %>%
+      select(seurat_id, cellranger_name)
+    , by = "seurat_id"
+  ) 
+
+violin_markers <- to_plot %>%
+  group_by(seurat_clusters, seurat_id) %>%
+  mutate(expression = expression + (rnorm(n = n()) / 1e5)) %>% #add noise to mimic seurat's VlnPlot behaviour
+  ggplot(aes(x = seurat_clusters, y = expression, fill = seurat_clusters))+
+  geom_violin(scale = "width")+
+  #geom_jitter(size = 0.00001) +
+  scale_fill_manual(values = seuratObj@misc$colors$seurat_clusters)+
+  facet_wrap(vars(cellranger_name))
 
 #format the umap plots
 umaps <- lapply(umaps, function(x){
@@ -153,3 +185,6 @@ final_plot <- panel_list[["A-D"]] + layout_tags("A")
 #save the figure
 dir.create("../Figures")
 ggsave("../Figures/Figure1.pdf", final_plot, width = 8.27, height = 8.27, scale = 2)
+
+#temporary: export violin markers
+ggsave("../Figures/vln_key_markers.pdf", violin_markers, scale = 2)

@@ -22,6 +22,9 @@ cellranger_outs_path <- "../inputs/scRNA/cellranger_outputs/culture_data/"
 out_seurat_path <- "../inputs/scRNA/seurat_objects/culture_data/culture_processed.rds"
 out_plots_dir <- "../outputs/scRNA/culture_analysis/"
 
+#get additional data####
+Ld_to_Lmj <- read_tsv(Lmj_to_Ld_culture)
+
 dirs <- list.dirs(cellranger_outs_path, recursive = FALSE)
 
 #set parameters####
@@ -81,9 +84,9 @@ seuratObj <- FindClusters(seuratObj, resolution = 0.6)
 
 #assigned morphotypes to clusters/subclusters####
 #start by getting a L. donovani to L. major gene convertion table
-Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
+Ld_to_Lmj <- Ld_to_Lmj %>% 
+  select(seurat_id, Lmj_ortholog) %>%
   distinct() %>%
-  select(seurat_id, Lm) %>%
   deframe()
 
 ##map it to reference

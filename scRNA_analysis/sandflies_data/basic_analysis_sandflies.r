@@ -22,6 +22,9 @@ cellranger_outs_path <- "../inputs/scRNA/cellranger_outputs/sandfly_data/"
 out_seurat_path <- "../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds"
 out_plots_dir <- "../outputs/scRNA/sandflies_analysis/UMAPs/"
 
+#get additional data####
+Ld_to_Lmj <- read_tsv(Lmj_to_Ld_sandflies)
+
 dirs <- list.dirs(cellranger_outs_path, recursive = FALSE)
 
 #set parameters####
@@ -66,8 +69,8 @@ objects <- lapply(objects, function(x){
 #remove non-amastigotes from day 0####
 #for that we map the day 0 library to the L.maj reference and keep only the cells flagged as amastigotes
 #start by getting a L. donovani to L. major gene convertion table
-Ld_to_Lmj <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>% 
-  select(seurat_id, Lm) %>%
+Ld_to_Lmj <- Ld_to_Lmj %>% 
+  select(seurat_id, Lmj_ortholog) %>%
   distinct() %>%
   deframe()
 
@@ -96,11 +99,11 @@ seuratObj <- merge(objects[[1]], objects[(c(2:length(objects)))], add.cell.ids =
 
 #now run analysis on merged object####
 seuratObj <- JoinLayers(seuratObj)
-seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE)
-seuratObj <- RunPCA(seuratObj, verbose = FALSE)
-seuratObj <- RunUMAP(seuratObj, dims = pca_dims)
+seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE, seed.use = 123)
+seuratObj <- RunPCA(seuratObj, verbose = FALSE, seed.use = 123)
+seuratObj <- RunUMAP(seuratObj, dims = pca_dims, seed.use = 123)
 seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
-seuratObj <- FindClusters(seuratObj, resolution = 0.6)
+seuratObj <- FindClusters(seuratObj, resolution = 0.6, random.seed = 123)
 
 #assigned morphotypes to clusters/subclusters####
 ##map it to reference
