@@ -24,7 +24,7 @@ conflict_prefer("align_plots", "ggalign")
 
 #set parameters####
 resolutions_to_try <- seq(0, 1, by = 0.05)
-out_dir <- "../outputs/scRNA/testing_different_resolutions/"
+out_dir <- "../outputs/scRNA/sandflies_analysis/testing_different_resolutions/"
 seuratObj <- readRDS("../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds")
 
 

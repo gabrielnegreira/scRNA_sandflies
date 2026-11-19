@@ -19,7 +19,7 @@ conflict_prefer("filter", "dplyr")
 conflict_prefer("rowSds", "MatrixGenerics")
 #set paths#### 
 cellranger_outs_path <- "../inputs/scRNA/cellranger_outputs/culture_data/"
-out_seurat_path <- "../inputs/scRNA/seurat_objects/sandfly_data/culture_processed.rds"
+out_seurat_path <- "../inputs/scRNA/seurat_objects/culture_data/culture_processed.rds"
 out_plots_dir <- "../outputs/scRNA/culture_analysis/"
 
 dirs <- list.dirs(cellranger_outs_path, recursive = FALSE)

@@ -112,8 +112,15 @@ cluster_markers_plot <- DoHeatmap_plus(
   features = features_to_plot,
   group.by = "seurat_clusters",
   group.colors = seuratObj@misc$colors,
-  feature_labels = feature_labels
+  feature_labels = feature_labels,
+  feature_label_size = 6,
+  feature_labels_max_char = 50
 )
+
+
+#plot specific markers####
+features_to_plot <- seuratObj[["RNA"]]@meta.data %>%
+  filter(grepl("sherp|dot1", tolower(cellranger_name)))
 
 #format the umap plots
 umaps <- lapply(umaps, function(x){
