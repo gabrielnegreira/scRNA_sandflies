@@ -10,10 +10,8 @@ genome_annotation <- rtracklayer::readGFFAsGRanges(ref_annotation) %>%
   mutate(seurat_id = gsub("_", "-", transcript_id))
 
 #get Lmajor homologs
-Lmj_to_Ld <- xlsx::read.xlsx(Lmj_to_Ld, sheetIndex = 1) %>%
-  rename(Lmj_ortholog = Lm) %>%
-  select(seurat_id, Lmj_ortholog) %>%
-  distinct()
+orthologs <- read_tsv("../inputs/reference_genome/TripDB_based_orthologs_for_LdCL.tsv") %>%
+  select(-cellranger_id)
 
 #get TrypTag localizations
 TrypTag_localizations <- read_delim(TrypTag_data) %>%
@@ -48,7 +46,7 @@ seuratObj[["RNA"]]@meta.data <- seuratObj[["RNA"]]@meta.data  %>%
   rownames_to_column("rowname") %>%
   left_join(genome_annotation, by = "seurat_id") %>%
   left_join(TrypTag_localizations, by = "seurat_id") %>%
-  left_join(Lmj_to_Ld, by = "seurat_id") %>%
+  left_join(orthologs, by = "seurat_id") %>%
   mutate(is_multicopy = seurat_id %in% multicopy_genes$seurat_id) %>%
   mutate(is_ribo = grepl("ribosom", tolower(annotated_name))) %>%
   mutate(is_mito = grepl("LdBPK-37", seurat_id)) %>%
