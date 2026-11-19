@@ -99,11 +99,11 @@ seuratObj <- merge(objects[[1]], objects[(c(2:length(objects)))], add.cell.ids =
 
 #now run analysis on merged object####
 seuratObj <- JoinLayers(seuratObj)
-seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE, seed.use = 123)
-seuratObj <- RunPCA(seuratObj, verbose = FALSE, seed.use = 123)
-seuratObj <- RunUMAP(seuratObj, dims = pca_dims, seed.use = 123)
+seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE, seed.use = 1448145)
+seuratObj <- RunPCA(seuratObj, verbose = FALSE, seed.use = 42)
+seuratObj <- RunUMAP(seuratObj, dims = pca_dims, seed.use = 42)
 seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
-seuratObj <- FindClusters(seuratObj, resolution = 0.6, random.seed = 123)
+seuratObj <- FindClusters(seuratObj, resolution = 0.6, random.seed = 0)
 
 #assigned morphotypes to clusters/subclusters####
 ##map it to reference

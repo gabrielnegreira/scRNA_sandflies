@@ -76,11 +76,11 @@ seuratObj <- objects[[1]]
 seuratObj$project <- project_name
 
 #now run analysis on merged object####
-seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE)
-seuratObj <- RunPCA(seuratObj, verbose = FALSE)
-seuratObj <- RunUMAP(seuratObj, dims = pca_dims)
+seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE, seed.use = 1448145)
+seuratObj <- RunPCA(seuratObj, verbose = FALSE, seed.use = 42)
+seuratObj <- RunUMAP(seuratObj, dims = pca_dims, seed.use = 42)
 seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
-seuratObj <- FindClusters(seuratObj, resolution = 0.6)
+seuratObj <- FindClusters(seuratObj, resolution = 0.6, random.seed = 0)
 
 #assigned morphotypes to clusters/subclusters####
 #start by getting a L. donovani to L. major gene convertion table
