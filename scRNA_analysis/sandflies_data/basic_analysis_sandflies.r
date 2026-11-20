@@ -4,6 +4,10 @@
 rm(list = ls(all.names = TRUE))
 gc()
 
+#set a seed
+future::plan(future::sequential)
+set.seed(1448145, kind = "L'Ecuyer-CMRG")
+
 #libraries####
 library(Seurat)
 library(tidyverse)
@@ -101,9 +105,14 @@ seuratObj <- merge(objects[[1]], objects[(c(2:length(objects)))], add.cell.ids =
 seuratObj <- JoinLayers(seuratObj)
 seuratObj <- SCTransform(seuratObj, vars.to.regress = "percent_mito", return.only.var.genes = FALSE, seed.use = 1448145)
 seuratObj <- RunPCA(seuratObj, verbose = FALSE, seed.use = 42)
+seuratObj <- FindNeighbors(seuratObj, dims = pca_dims, nn.method = "annoy")
+seuratObj <- FindClusters(seuratObj, resolution = seq(0, 1, by = 0.05), random.seed = 0, n.start = 100, n.iter = 100) #to have alternative resolutions if needed
 seuratObj <- RunUMAP(seuratObj, dims = pca_dims, seed.use = 42)
-seuratObj <- FindNeighbors(seuratObj, dims = pca_dims)
-seuratObj <- FindClusters(seuratObj, resolution = 0.6, random.seed = 0)
+
+#choose a resolution for downstream analysis
+seuratObj@meta.data$seurat_clusters <- seuratObj@meta.data$SCT_snn_res.0.4
+Idents(seuratObj) <- "seurat_clusters"
+DimPlot(seuratObj)
 
 #assigned morphotypes to clusters/subclusters####
 ##map it to reference

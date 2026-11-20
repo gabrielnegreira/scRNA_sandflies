@@ -31,7 +31,7 @@ tmp/
 .DS_Store
 .RData
 *.Rproj
-
+.RDataTmp
 #exlude renv files
 # Ignore all project-local renv files
 renv/*

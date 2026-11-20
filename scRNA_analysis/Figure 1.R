@@ -29,8 +29,13 @@ seuratObj <- readRDS("../inputs/scRNA/seurat_objects/sandfly_data/sandfly_proces
 seuratObj@misc$colors$assigned_morphotype <- morphotype_colors
 seuratObj@misc$colors$pbm_day <- pbm_day_colors
 
+#temporary: choose a different resolution:
+#resolution_to_use <- 0.4
+#seuratObj <- FindClusters(seuratObj, resolution = resolution_to_use)
+
 #get cluster markers
-cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/sandflies_analysis/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
+cluster_markers <- xlsx::read.xlsx(paste0("../outputs/scRNA/sandflies_analysis/testing_different_resolutions/SCT_snn_res.", resolution_to_use, "_markers.xlsx"), sheetIndex = 1) %>%
+#cluster_markers <- xlsx::read.xlsx("../outputs/scRNA/sandflies_analysis/Heatmaps/seurat_clusters_markers.xlsx", sheetIndex = 1) %>%
   mutate(feature_id = gsub("_", "-", seurat_id))
 
 #plot cluster umap####
@@ -110,15 +115,18 @@ feature_labels <- cluster_markers %>%
 cluster_markers_plot <- DoHeatmap_plus(
   seuratObj = seuratObj,
   features = features_to_plot,
-  group.by = "seurat_clusters",
+  group.by = c("seurat_clusters", "pbm_day"),
   group.colors = seuratObj@misc$colors,
   feature_labels = feature_labels,
-  feature_label_size = 6,
+  feature_label_size = 4,
   feature_labels_max_char = 50
 )
 
+#plot top 10 markers from Catta-Preta et al 2024####
+##get the markers table
+Lmj_markers <- read_tsv("../inputs/external_data/markers_from_Lmj_atlas_formatted.tsv")
 
-#the marjers specified by Catta preta####
+##get the corresponding L. donovani orthologs
 Lmj_to_Ld <- read_tsv("../inputs/reference_genome/TripDB_based_orthologs_for_LdCL.tsv")
 Lmj_to_Ld <- Lmj_to_Ld %>%
   select(seurat_id, Lmj_orthologs) %>%
@@ -126,33 +134,44 @@ Lmj_to_Ld <- Lmj_to_Ld %>%
   group_by(Lmj_orthologs) %>%
   summarise(seurat_id = paste0(seurat_id, collapse = ","))
 
-key_markers <- read_tsv("../inputs/external_data/Lmj_key_markers.tsv")
-key_markers <- key_markers %>%
-  filter(!is.na(gene_id)) %>%
-  rename(Lmj_orthologs = gene_id) %>%
-  left_join(Lmj_to_Ld, by = "Lmj_orthologs") %>%
-  separate_rows(seurat_id, sep = ",") %>%
-  filter(seurat_id %in% rownames(seuratObj[["RNA"]]$counts))
+##append the orthologs
+Lmj_markers <- Lmj_markers %>%
+  select(cluster, geneID, avg_log2FC) %>%
+  rename(Lmj_orthologs = geneID) %>%
+  left_join(Lmj_to_Ld, by = "Lmj_orthologs")
 
-#plot violins
-to_plot <- FetchData(seuratObj, vars = c(unique(key_markers$seurat_id), "seurat_clusters", "assigned_morphotype"), assay = "RNA", layer = "data") %>%
-  as.data.frame() %>%
-  rownames_to_column("cell") %>%
-  pivot_longer(cols = contains("Ld"), names_to = "seurat_id", values_to = "expression") %>%
-  left_join(
-    seuratObj[["RNA"]]@meta.data %>%
-      select(seurat_id, cellranger_name)
-    , by = "seurat_id"
-  ) 
+markers_to_plot <- Lmj_markers %>%
+  group_by(cluster) %>%
+  slice_max(order_by = avg_log2FC, n = 12) %>%
+  separate_rows(seurat_id, sep = ",")
 
-violin_markers <- to_plot %>%
-  group_by(seurat_clusters, seurat_id) %>%
-  mutate(expression = expression + (rnorm(n = n()) / 1e5)) %>% #add noise to mimic seurat's VlnPlot behaviour
-  ggplot(aes(x = seurat_clusters, y = expression, fill = seurat_clusters))+
-  geom_violin(scale = "width")+
-  #geom_jitter(size = 0.00001) +
-  scale_fill_manual(values = seuratObj@misc$colors$seurat_clusters)+
-  facet_wrap(vars(cellranger_name))
+plot_list <- list()
+for(Cluster in unique(markers_to_plot$cluster)){
+  markers_subset <- filter(markers_to_plot, cluster == Cluster)
+  
+  to_plot <- FetchData(seuratObj, vars = c(unique(markers_subset$seurat_id), "seurat_clusters", "assigned_morphotype"), assay = "RNA", layer = "data") %>%
+    as.data.frame() %>%
+    rownames_to_column("cell") %>%
+    pivot_longer(cols = contains("Ld"), names_to = "seurat_id", values_to = "expression") %>%
+    left_join(
+      seuratObj[["RNA"]]@meta.data %>%
+        select(seurat_id, cellranger_name)
+      , by = "seurat_id"
+    )
+  
+  plot_list[[Cluster]] <- to_plot %>%
+    group_by(seurat_clusters, seurat_id) %>%
+    mutate(expression = expression + (rnorm(n = n()) / 1e5)) %>% #add noise to mimic seurat's VlnPlot behaviour
+    ggplot(aes(x = seurat_clusters, y = expression, fill = seurat_clusters))+
+    geom_violin(scale = "width")+
+    #geom_jitter(size = 0.00001) +
+    ggtitle(paste("Markers of", Cluster)) +
+    labs(fill = "cluster")+
+    scale_fill_manual(values = seuratObj@misc$colors$seurat_clusters)+
+    facet_wrap(vars(cellranger_name))
+}
+
+markers_violins <- ggalign::align_plots(!!!plot_list)
 
 #format the umap plots
 umaps <- lapply(umaps, function(x){
@@ -187,4 +206,4 @@ dir.create("../Figures")
 ggsave("../Figures/Figure1.pdf", final_plot, width = 8.27, height = 8.27, scale = 2)
 
 #temporary: export violin markers
-ggsave("../Figures/vln_key_markers.pdf", violin_markers, scale = 2)
+ggsave("../Figures/markers_violin.pdf", markers_violins, scale = 4)

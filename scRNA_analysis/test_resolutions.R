@@ -23,13 +23,11 @@ conflict_prefer("as.factor", "base")
 conflict_prefer("align_plots", "ggalign")
 
 #set parameters####
-resolutions_to_try <- seq(0, 1, by = 0.05)
 out_dir <- "../outputs/scRNA/sandflies_analysis/testing_different_resolutions/"
 seuratObj <- readRDS("../inputs/scRNA/seurat_objects/sandfly_data/sandfly_processed.rds")
 
 
 #do different clusters####
-seuratObj <- FindClusters(seuratObj, resolution = resolutions_to_try)
 
 #save clustree####
 clustree_plot <- clustree(seuratObj)
